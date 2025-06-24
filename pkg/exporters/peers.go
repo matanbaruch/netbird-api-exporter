@@ -17,16 +17,17 @@ type PeersExporter struct {
 	client *netbird.Client
 
 	// Prometheus metrics
-	peersTotal            *prometheus.GaugeVec
-	peersConnected        *prometheus.GaugeVec
-	peersLastSeen         *prometheus.GaugeVec
-	peersByOS             *prometheus.GaugeVec
-	peersByCountry        *prometheus.GaugeVec
-	peersByGroup          *prometheus.GaugeVec
-	peersSSHEnabled       *prometheus.GaugeVec
-	peersLoginExpired     *prometheus.GaugeVec
-	peersApprovalRequired *prometheus.GaugeVec
-	accessiblePeersCount  *prometheus.GaugeVec
+	peersTotal                 *prometheus.GaugeVec
+	peersConnected             *prometheus.GaugeVec
+	peersLastSeen              *prometheus.GaugeVec
+	peersByOS                  *prometheus.GaugeVec
+	peersByCountry             *prometheus.GaugeVec
+	peersByGroup               *prometheus.GaugeVec
+	peersSSHEnabled            *prometheus.GaugeVec
+	peersLoginExpired          *prometheus.GaugeVec
+	peersApprovalRequired      *prometheus.GaugeVec
+	accessiblePeersCount       *prometheus.GaugeVec
+	peerConnectionStatusByName *prometheus.GaugeVec
 }
 
 // NewPeersExporter creates a new peers exporter
@@ -113,6 +114,14 @@ func NewPeersExporter(client *netbird.Client) *PeersExporter {
 			},
 			[]string{"peer_id", "peer_name"},
 		),
+
+		peerConnectionStatusByName: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "netbird_peer_connection_status_by_name",
+				Help: "Connection status of each peer by name (1 for connected, 0 for disconnected)",
+			},
+			[]string{"peer_name", "peer_id", "connected"},
+		),
 	}
 }
 
@@ -128,6 +137,7 @@ func (e *PeersExporter) Describe(ch chan<- *prometheus.Desc) {
 	e.peersLoginExpired.Describe(ch)
 	e.peersApprovalRequired.Describe(ch)
 	e.accessiblePeersCount.Describe(ch)
+	e.peerConnectionStatusByName.Describe(ch)
 }
 
 // Collect implements prometheus.Collector
@@ -143,6 +153,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersLoginExpired.Reset()
 	e.peersApprovalRequired.Reset()
 	e.accessiblePeersCount.Reset()
+	e.peerConnectionStatusByName.Reset()
 
 	peers, err := e.fetchPeers()
 	if err != nil {
@@ -163,6 +174,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersLoginExpired.Collect(ch)
 	e.peersApprovalRequired.Collect(ch)
 	e.accessiblePeersCount.Collect(ch)
+	e.peerConnectionStatusByName.Collect(ch)
 }
 
 // fetchPeers retrieves peers from NetBird API
@@ -275,6 +287,15 @@ func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
 
 		// Accessible peers count
 		e.accessiblePeersCount.WithLabelValues(peer.ID, peer.Name).Set(float64(peer.AccessiblePeersCount))
+
+		// Connection status by name - using peer.Name for peer_name label
+		connectedStr := "false"
+		connectionValue := 0.0
+		if peer.Connected {
+			connectedStr = "true"
+			connectionValue = 1.0
+		}
+		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.ID, connectedStr).Set(connectionValue)
 	}
 
 	// Set metrics

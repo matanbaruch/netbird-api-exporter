@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Add netbird_peer_connection_status_by_name metric to track individual peer connection status with peer name, ID, and connection state labels
+Files modified in this change:
+- Modified: pkg/exporters/peers.go
+
 ## [0.1.43] - 2025-06-23
 
 ## [0.1.42] - 2025-06-23
@@ -399,4 +405,3 @@ When adding entries to the changelog, use the following guidelines:
 
 - Updated README.md to remove contributing section
 - Enhanced GitHub Actions workflow by adding permissions for write access
-- Adjusted checkout settings for better version control

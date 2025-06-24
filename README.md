@@ -49,6 +49,7 @@ The exporter provides the following metrics:
 | `netbird_peers_login_expired`         | Gauge | Number of peers with expired/valid login         | `login_expired`                    |
 | `netbird_peers_approval_required`     | Gauge | Number of peers requiring/not requiring approval | `approval_required`                |
 | `netbird_peer_accessible_peers_count` | Gauge | Number of accessible peers for each peer         | `peer_id`, `peer_name`             |
+| `netbird_peer_connection_status_by_name` | Gauge | Connection status of each peer by name (1 for connected, 0 for disconnected) | `peer_name`, `peer_id`, `connected` |
 
 ### Group Metrics Table
 
@@ -284,6 +285,18 @@ netbird_peers_approval_required{approval_required="true"}
 
 # Average accessible peers per peer
 avg(netbird_peer_accessible_peers_count)
+
+# Connection status of specific peer by name
+netbird_peer_connection_status_by_name{peer_name="aura-netbird-us-east-1-eks-infra-0"}
+
+# All disconnected peers
+netbird_peer_connection_status_by_name{connected="false"}
+
+# All connected peers
+netbird_peer_connection_status_by_name{connected="true"}
+
+# Count of connected vs disconnected peers by name
+sum(netbird_peer_connection_status_by_name) by (connected)
 ```
 
 ### Group Queries

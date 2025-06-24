@@ -58,6 +58,8 @@ annotations:
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
     - kind: added
+      description: "Add netbird_peer_connection_status_by_name metric to track individual peer connection status with peer name, ID, and connection state labels"
+    - kind: added
       description: "Add comprehensive debugging logs to Helm chart test for troubleshooting deployment issues"
     - kind: fixed
       description: "Fix Helm chart test deployment name and use GitHub secrets for API token"
