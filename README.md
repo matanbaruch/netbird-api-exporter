@@ -128,10 +128,8 @@ The exporter is configured via environment variables:
 
 ## Getting Your NetBird API Token
 
-1. Log into your NetBird dashboard
-2. Go to **Settings** → **API Keys**
-3. Create a new API key with appropriate permissions
-4. Copy the token and use it as `NETBIRD_API_TOKEN`
+1. Create a new service user with PAT with appropriate permissions. See docs: [NetBird Service Users Guide](https://docs.netbird.io/how-to/access-netbird-public-api#creating-a-service-user).
+2. Copy the token and use it as `NETBIRD_API_TOKEN`
 
 ## Installation & Usage
 

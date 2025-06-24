@@ -6,12 +6,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
 )
 
 // NetBirdExporter represents the main Prometheus exporter for NetBird APIs
 type NetBirdExporter struct {
-	client           *netbird.Client
+	client           *nbclient.Client
 	peersExporter    *PeersExporter
 	groupsExporter   *GroupsExporter
 	usersExporter    *UsersExporter
@@ -25,7 +25,8 @@ type NetBirdExporter struct {
 
 // NewNetBirdExporter creates a new NetBird exporter with all sub-exporters
 func NewNetBirdExporter(baseURL, token string) *NetBirdExporter {
-	client := netbird.NewClient(baseURL, token)
+
+	client := nbclient.New(baseURL, token)
 
 	return &NetBirdExporter{
 		client:           client,

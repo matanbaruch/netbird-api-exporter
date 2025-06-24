@@ -1,20 +1,20 @@
 package exporters
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
 	"strings"
+	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 // PeersExporter handles peers-specific metrics collection
 type PeersExporter struct {
-	client *netbird.Client
+	client *nbclient.Client
 
 	// Prometheus metrics
 	peersTotal                 *prometheus.GaugeVec
@@ -31,7 +31,7 @@ type PeersExporter struct {
 }
 
 // NewPeersExporter creates a new peers exporter
-func NewPeersExporter(client *netbird.Client) *PeersExporter {
+func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 	return &PeersExporter{
 		client: client,
 
@@ -155,7 +155,10 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.accessiblePeersCount.Reset()
 	e.peerConnectionStatusByName.Reset()
 
-	peers, err := e.fetchPeers()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	peers, err := e.client.Peers.List(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch peers")
 		return
@@ -177,46 +180,8 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peerConnectionStatusByName.Collect(ch)
 }
 
-// fetchPeers retrieves peers from NetBird API
-func (e *PeersExporter) fetchPeers() ([]netbird.Peer, error) {
-	url := fmt.Sprintf("%s/api/peers", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching peers from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for peers")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var peers []netbird.Peer
-	if err := json.NewDecoder(resp.Body).Decode(&peers); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.WithField("count", len(peers)).Debug("Successfully fetched peers from API")
-
-	return peers, nil
-}
-
 // updateMetrics updates Prometheus metrics based on peer data
-func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
+func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 	// Count totals
 	totalPeers := len(peers)
 	connectedCount := 0
@@ -242,10 +207,10 @@ func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
 		}
 
 		// Last seen timestamp
-		e.peersLastSeen.WithLabelValues(peer.ID, peer.Name, peer.Hostname).Set(float64(peer.LastSeen.Unix()))
+		e.peersLastSeen.WithLabelValues(peer.Id, peer.Name, peer.Hostname).Set(float64(peer.LastSeen.Unix()))
 
 		// OS distribution
-		osKey := peer.OS
+		osKey := peer.Os
 		if osKey == "" {
 			osKey = "unknown"
 		}
@@ -260,12 +225,12 @@ func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
 
 		// Group membership
 		for _, group := range peer.Groups {
-			groupKey := fmt.Sprintf("%s_%s", group.ID, group.Name)
+			groupKey := fmt.Sprintf("%s_%s", group.Id, group.Name)
 			groupCounts[groupKey]++
 		}
 
 		// SSH status
-		if peer.SSHEnabled {
+		if peer.SshEnabled {
 			sshEnabledCount++
 		} else {
 			sshDisabledCount++
@@ -285,9 +250,6 @@ func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
 			approvalNotRequiredCount++
 		}
 
-		// Accessible peers count
-		e.accessiblePeersCount.WithLabelValues(peer.ID, peer.Name).Set(float64(peer.AccessiblePeersCount))
-
 		// Connection status by name - using peer.Name for peer_name label
 		connectedStr := "false"
 		connectionValue := 0.0
@@ -295,7 +257,7 @@ func (e *PeersExporter) updateMetrics(peers []netbird.Peer) {
 			connectedStr = "true"
 			connectionValue = 1.0
 		}
-		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.ID, connectedStr).Set(connectionValue)
+		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, connectedStr).Set(connectionValue)
 	}
 
 	// Set metrics

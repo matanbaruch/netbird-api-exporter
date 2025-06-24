@@ -2,18 +2,15 @@ package pkg
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/matanbaruch/netbird-api-exporter/pkg/exporters"
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 	"github.com/matanbaruch/netbird-api-exporter/pkg/utils"
 )
 
@@ -27,16 +24,11 @@ func TestIntegration_SkipIfNoToken(t *testing.T) {
 	}
 }
 
-func getTestClient(t *testing.T) *netbird.Client {
+func getTestClient(t *testing.T) *nbclient.Client {
 	t.Helper()
 
-	token := os.Getenv("NETBIRD_API_TOKEN")
-	if token == "" {
-		t.Skip("Skipping integration test: NETBIRD_API_TOKEN environment variable not set")
-	}
-
-	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "https://api.netbird.io")
-	client := netbird.NewClient(baseURL, token)
+	url, token := getURLAndCreds(t)
+	client := nbclient.New(url, token)
 
 	if client == nil {
 		t.Fatal("Failed to create NetBird client")
@@ -45,43 +37,14 @@ func getTestClient(t *testing.T) *netbird.Client {
 	return client
 }
 
-func TestIntegration_NetBirdClient_HTTPStatus(t *testing.T) {
-	client := getTestClient(t)
-
-	// Test API connectivity by making a simple request
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		"GET",
-		fmt.Sprintf("%s/api/users", client.GetBaseURL()),
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+func getURLAndCreds(t *testing.T) (string, string) {
+	t.Helper()
+	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "https://api.netbird.io")
+	token := os.Getenv("NETBIRD_API_TOKEN")
+	if token == "" {
+		t.Skipf("NETBIRD_API_TOKEN environment variable not set")
 	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", client.GetToken()))
-	req.Header.Set("Content-Type", "application/json")
-
-	httpClient := client.GetHTTPClient()
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to make API request: %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("Failed to close response body: %v", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	// Verify proper content type
-	contentType := resp.Header.Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
-		t.Errorf("Expected JSON content type, got %s", contentType)
-	}
+	return baseURL, token
 }
 
 func TestIntegration_NetBirdExporter_RealAPI(t *testing.T) {
@@ -339,82 +302,21 @@ func TestIntegration_APIRateLimiting(t *testing.T) {
 
 	// Test multiple rapid requests to ensure rate limiting doesn't break
 	const numRequests = 5
-
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	for i := 0; i < numRequests; i++ {
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			"GET",
-			fmt.Sprintf("%s/api/users", client.GetBaseURL()),
-			nil,
-		)
+		_, err := client.Users.List(ctx)
 		if err != nil {
-			t.Fatalf("Request %d: Failed to create request: %v", i, err)
+			t.Errorf("Request %d failed: %v", i+1, err)
 		}
-
-		req.Header.Set("Authorization", fmt.Sprintf("Token %s", client.GetToken()))
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := client.GetHTTPClient().Do(req)
-		if err != nil {
-			t.Errorf("Request %d: Failed to make API request: %v", i, err)
-			continue
-		}
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("Request %d: Failed to close response body: %v", i, err)
-		}
-
-		// Accept both 200 and 429 (rate limited) as valid responses
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusTooManyRequests {
-			t.Errorf("Request %d: Unexpected status code %d", i, resp.StatusCode)
-		}
-
-		if resp.StatusCode == http.StatusTooManyRequests {
-			t.Logf("Request %d: Rate limited (status 429) - this is expected behavior", i)
-		}
-
 		// Small delay between requests
 		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func TestIntegration_APIErrorHandling(t *testing.T) {
-	// Test with invalid token to ensure error handling works
-	invalidClient := netbird.NewClient("https://api.netbird.io", "invalid-token")
-
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		"GET",
-		fmt.Sprintf("%s/api/users", invalidClient.GetBaseURL()),
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", invalidClient.GetToken()))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := invalidClient.GetHTTPClient().Do(req)
-	if err != nil {
-		t.Fatalf("Failed to make API request: %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("Failed to close response body: %v", err)
-		}
-	}()
-
-	// Should get 401 Unauthorized
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("Expected status 401 for invalid token, got %d", resp.StatusCode)
-	}
-}
-
 func TestIntegration_MetricsAccuracy(t *testing.T) {
-	client := getTestClient(t)
-
 	// Test that metrics are consistent between multiple collections
-	exporter := exporters.NewNetBirdExporter(client.GetBaseURL(), client.GetToken())
+	exporter := exporters.NewNetBirdExporter(getURLAndCreds(t))
 
 	// Collect metrics twice
 	var firstCollection, secondCollection []prometheus.Metric
@@ -461,43 +363,4 @@ func TestIntegration_MetricsAccuracy(t *testing.T) {
 
 	t.Logf("First collection: %d metrics, Second collection: %d metrics",
 		len(firstCollection), len(secondCollection))
-}
-
-func TestIntegration_LoggingConfiguration(t *testing.T) {
-	// Test that logging is properly configured for integration tests
-	client := getTestClient(t)
-
-	// Temporarily set log level to debug to test logging
-	originalLevel := logrus.GetLevel()
-	logrus.SetLevel(logrus.DebugLevel)
-	defer logrus.SetLevel(originalLevel)
-
-	// Make a request that should generate debug logs
-	req, err := http.NewRequestWithContext(
-		context.Background(),
-		"GET",
-		fmt.Sprintf("%s/api/users", client.GetBaseURL()),
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", client.GetToken()))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.GetHTTPClient().Do(req)
-	if err != nil {
-		t.Fatalf("Failed to make API request: %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("Failed to close response body: %v", err)
-		}
-	}()
-
-	// Just verify the request completed successfully
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
 }

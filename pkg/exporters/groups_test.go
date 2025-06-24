@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewGroupsExporter(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewGroupsExporter(client)
 
 	if exporter == nil {
@@ -43,7 +43,7 @@ func TestNewGroupsExporter(t *testing.T) {
 }
 
 func TestGroupsExporter_Describe(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewGroupsExporter(client)
 
 	ch := make(chan *prometheus.Desc, 10)
@@ -78,45 +78,46 @@ func TestGroupsExporter_Collect_Success(t *testing.T) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
-		groups := []netbird.Group{
+		issuedAPI := api.GroupIssuedApi
+		issuedIntegration := api.GroupIssuedIntegration
+		groups := []api.Group{
 			{
-				ID:             "group1",
+				Id:             "group1",
 				Name:           "admin-group",
 				PeersCount:     5,
 				ResourcesCount: 2,
-				Issued:         "api",
-				Peers: []netbird.GroupPeer{
-					{ID: "peer1", Name: "peer-1"},
-					{ID: "peer2", Name: "peer-2"},
+				Issued:         &issuedAPI,
+				Peers: []api.PeerMinimum{
+					{Id: "peer1", Name: "peer-1"},
+					{Id: "peer2", Name: "peer-2"},
 				},
-				Resources: []netbird.GroupResource{
-					{ID: "resource1", Type: "host"},
+				Resources: []api.Resource{
+					{Id: "resource1", Type: "host"},
 				},
 			},
 			{
-				ID:             "group2",
+				Id:             "group2",
 				Name:           "user-group",
 				PeersCount:     10,
 				ResourcesCount: 0,
-				Issued:         "integration",
-				Peers: []netbird.GroupPeer{
-					{ID: "peer3", Name: "peer-3"},
-					{ID: "peer4", Name: "peer-4"},
-					{ID: "peer5", Name: "peer-5"},
+				Issued:         &issuedIntegration,
+				Peers: []api.PeerMinimum{
+					{Id: "peer3", Name: "peer-3"},
+					{Id: "peer4", Name: "peer-4"},
+					{Id: "peer5", Name: "peer-5"},
 				},
-				Resources: []netbird.GroupResource{},
+				Resources: []api.Resource{},
 			},
 			{
-				ID:             "group3",
+				Id:             "group3",
 				Name:           "service-group",
 				PeersCount:     2,
 				ResourcesCount: 3,
-				Issued:         "api",
-				Peers:          []netbird.GroupPeer{},
-				Resources: []netbird.GroupResource{
-					{ID: "resource2", Type: "domain"},
-					{ID: "resource3", Type: "subnet"},
+				Issued:         &issuedAPI,
+				Peers:          []api.PeerMinimum{},
+				Resources: []api.Resource{
+					{Id: "resource2", Type: "domain"},
+					{Id: "resource3", Type: "subnet"},
 				},
 			},
 		}
@@ -129,7 +130,7 @@ func TestGroupsExporter_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Collect metrics
@@ -186,7 +187,7 @@ func TestGroupsExporter_Collect_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Collect metrics
@@ -217,7 +218,7 @@ func TestGroupsExporter_Collect_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Collect metrics
@@ -249,7 +250,7 @@ func TestGroupsExporter_Collect_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Collect metrics
@@ -266,24 +267,26 @@ func TestGroupsExporter_Collect_InvalidJSON(t *testing.T) {
 }
 
 func TestGroupsExporter_UpdateMetrics(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Test data
-	groups := []netbird.Group{
+	issuedAPI := api.GroupIssuedApi
+	issuedIntegration := api.GroupIssuedIntegration
+	groups := []api.Group{
 		{
-			ID:             "group1",
+			Id:             "group1",
 			Name:           "test-group-1",
 			PeersCount:     5,
 			ResourcesCount: 2,
-			Issued:         "api",
+			Issued:         &issuedAPI,
 		},
 		{
-			ID:             "group2",
+			Id:             "group2",
 			Name:           "test-group-2",
 			PeersCount:     3,
 			ResourcesCount: 1,
-			Issued:         "integration",
+			Issued:         &issuedIntegration,
 		},
 	}
 
@@ -316,88 +319,8 @@ func TestGroupsExporter_UpdateMetrics(t *testing.T) {
 	}
 }
 
-func TestGroupsExporter_FetchGroups_Success(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.URL.Path != "/api/groups" {
-			http.NotFound(w, r)
-			return
-		}
-
-		accept := r.Header.Get("Accept")
-		if accept != "application/json" {
-			http.Error(w, "Invalid Accept header", http.StatusBadRequest)
-			return
-		}
-
-		token := r.Header.Get("Authorization")
-		if !strings.HasPrefix(token, "Token ") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		groups := []netbird.Group{
-			{
-				ID:             "group1",
-				Name:           "test-group",
-				PeersCount:     1,
-				ResourcesCount: 0,
-				Issued:         "api",
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(groups); err != nil {
-			t.Errorf("Failed to encode groups: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewGroupsExporter(client)
-
-	groups, err := exporter.fetchGroups()
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(groups) != 1 {
-		t.Errorf("Expected 1 group, got %d", len(groups))
-	}
-
-	if groups[0].Name != "test-group" {
-		t.Errorf("Expected group name to be test-group, got %s", groups[0].Name)
-	}
-}
-
-func TestGroupsExporter_FetchGroups_InvalidJSON(t *testing.T) {
-	// Create mock server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`invalid json`)); err != nil {
-			t.Errorf("Failed to write response: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewGroupsExporter(client)
-
-	_, err := exporter.fetchGroups()
-	if err == nil {
-		t.Error("Expected error for invalid JSON")
-	}
-}
-
 func TestGroupsExporter_MetricsReset(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Set some initial values
@@ -405,7 +328,7 @@ func TestGroupsExporter_MetricsReset(t *testing.T) {
 	exporter.groupPeersCount.WithLabelValues("group1", "test-group", "api").Set(5)
 
 	// Create empty groups to test reset
-	groups := []netbird.Group{}
+	groups := []api.Group{}
 	exporter.updateMetrics(groups)
 
 	// Collect and verify metrics are reset
@@ -430,17 +353,18 @@ func TestGroupsExporter_MetricsReset(t *testing.T) {
 }
 
 func TestGroupsExporter_MetricLabels(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewGroupsExporter(client)
 
 	// Test data with specific values for label verification
-	groups := []netbird.Group{
+	issued := api.GroupIssuedApi
+	groups := []api.Group{
 		{
-			ID:             "group1",
+			Id:             "group1",
 			Name:           "test-group",
 			PeersCount:     5,
 			ResourcesCount: 2,
-			Issued:         "api",
+			Issued:         &issued,
 		},
 	}
 

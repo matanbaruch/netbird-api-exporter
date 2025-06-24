@@ -1,19 +1,18 @@
 package exporters
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"context"
+	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 // GroupsExporter handles groups-specific metrics collection
 type GroupsExporter struct {
-	client *netbird.Client
+	client *nbclient.Client
 
 	// Prometheus metrics for groups
 	groupsTotal          *prometheus.GaugeVec
@@ -26,7 +25,7 @@ type GroupsExporter struct {
 }
 
 // NewGroupsExporter creates a new groups exporter
-func NewGroupsExporter(client *netbird.Client) *GroupsExporter {
+func NewGroupsExporter(client *nbclient.Client) *GroupsExporter {
 	return &GroupsExporter{
 		client: client,
 
@@ -111,7 +110,10 @@ func (e *GroupsExporter) Collect(ch chan<- prometheus.Metric) {
 	e.groupInfo.Reset()
 	e.groupResourcesByType.Reset()
 
-	groups, err := e.fetchGroups()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	groups, err := e.client.Groups.List(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch groups")
 		e.scrapeErrorsTotal.WithLabelValues("fetch_groups").Inc()
@@ -130,46 +132,8 @@ func (e *GroupsExporter) Collect(ch chan<- prometheus.Metric) {
 	e.scrapeDuration.Collect(ch)
 }
 
-// fetchGroups retrieves groups from NetBird API
-func (e *GroupsExporter) fetchGroups() ([]netbird.Group, error) {
-	url := fmt.Sprintf("%s/api/groups", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching groups from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for groups")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var groups []netbird.Group
-	if err := json.NewDecoder(resp.Body).Decode(&groups); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.WithField("count", len(groups)).Debug("Successfully fetched groups from API")
-
-	return groups, nil
-}
-
 // updateMetrics updates Prometheus metrics based on groups data
-func (e *GroupsExporter) updateMetrics(groups []netbird.Group) {
+func (e *GroupsExporter) updateMetrics(groups []api.Group) {
 	totalGroups := len(groups)
 
 	// Count resources by type across all groups
@@ -179,7 +143,11 @@ func (e *GroupsExporter) updateMetrics(groups []netbird.Group) {
 	resourceTypeTotals := make(map[string]int)
 
 	for _, group := range groups {
-		groupLabels := []string{group.ID, group.Name, group.Issued}
+		issued := ""
+		if group.Issued != nil {
+			issued = string(*group.Issued)
+		}
+		groupLabels := []string{group.Id, group.Name, issued}
 
 		// Set basic group metrics
 		e.groupPeersCount.WithLabelValues(groupLabels...).Set(float64(group.PeersCount))
@@ -191,18 +159,18 @@ func (e *GroupsExporter) updateMetrics(groups []netbird.Group) {
 		totalResources += group.ResourcesCount
 
 		// Count resources by type for this group
-		if resourceTypeCount[group.ID] == nil {
-			resourceTypeCount[group.ID] = make(map[string]int)
+		if resourceTypeCount[group.Id] == nil {
+			resourceTypeCount[group.Id] = make(map[string]int)
 		}
 
 		for _, resource := range group.Resources {
-			resourceTypeCount[group.ID][resource.Type]++
-			resourceTypeTotals[resource.Type]++
+			resourceTypeCount[group.Id][string(resource.Type)]++
+			resourceTypeTotals[string(resource.Type)]++
 		}
 
 		// Set resource type metrics
-		for resourceType, count := range resourceTypeCount[group.ID] {
-			e.groupResourcesByType.WithLabelValues(group.ID, group.Name, resourceType).Set(float64(count))
+		for resourceType, count := range resourceTypeCount[group.Id] {
+			e.groupResourcesByType.WithLabelValues(group.Id, group.Name, resourceType).Set(float64(count))
 		}
 	}
 

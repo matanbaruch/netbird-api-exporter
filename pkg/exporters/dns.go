@@ -1,20 +1,19 @@
 package exporters
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"context"
 	"strconv"
+	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 // DNSExporter handles DNS-specific metrics collection
 type DNSExporter struct {
-	client *netbird.Client
+	client *nbclient.Client
 
 	// Prometheus metrics
 	nameserverGroupsTotal   *prometheus.GaugeVec
@@ -28,7 +27,7 @@ type DNSExporter struct {
 }
 
 // NewDNSExporter creates a new DNS exporter
-func NewDNSExporter(client *netbird.Client) *DNSExporter {
+func NewDNSExporter(client *nbclient.Client) *DNSExporter {
 	return &DNSExporter{
 		client: client,
 
@@ -122,16 +121,21 @@ func (e *DNSExporter) Collect(ch chan<- prometheus.Metric) {
 	e.nameserversByPort.Reset()
 	e.dnsManagementDisabled.Reset()
 
+	ctx, cancelNS := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelNS()
 	// Fetch nameserver groups
-	nameserverGroups, err := e.fetchNameserverGroups()
+	nameserverGroups, err := e.client.DNS.ListNameserverGroups(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch nameserver groups")
 	} else {
 		e.updateNameserverMetrics(nameserverGroups)
 	}
 
+	ctx, cancelSettings := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelSettings()
+
 	// Fetch DNS settings
-	dnsSettings, err := e.fetchDNSSettings()
+	dnsSettings, err := e.client.DNS.GetSettings(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch DNS settings")
 	} else {
@@ -149,84 +153,8 @@ func (e *DNSExporter) Collect(ch chan<- prometheus.Metric) {
 	e.dnsManagementDisabled.Collect(ch)
 }
 
-// fetchNameserverGroups retrieves nameserver groups from NetBird API
-func (e *DNSExporter) fetchNameserverGroups() ([]netbird.NameserverGroup, error) {
-	url := fmt.Sprintf("%s/api/dns/nameservers", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching nameserver groups from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for nameserver groups")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var nameserverGroups []netbird.NameserverGroup
-	if err := json.NewDecoder(resp.Body).Decode(&nameserverGroups); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.WithField("count", len(nameserverGroups)).Debug("Successfully fetched nameserver groups from API")
-
-	return nameserverGroups, nil
-}
-
-// fetchDNSSettings retrieves DNS settings from NetBird API
-func (e *DNSExporter) fetchDNSSettings() (*netbird.DNSSettings, error) {
-	url := fmt.Sprintf("%s/api/dns/settings", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching DNS settings from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for DNS settings")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var dnsSettings netbird.DNSSettings
-	if err := json.NewDecoder(resp.Body).Decode(&dnsSettings); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.Debug("Successfully fetched DNS settings from API")
-
-	return &dnsSettings, nil
-}
-
 // updateNameserverMetrics updates Prometheus metrics based on nameserver group data
-func (e *DNSExporter) updateNameserverMetrics(nameserverGroups []netbird.NameserverGroup) {
+func (e *DNSExporter) updateNameserverMetrics(nameserverGroups []api.NameserverGroup) {
 	// Count totals
 	totalGroups := len(nameserverGroups)
 	e.nameserverGroupsTotal.WithLabelValues().Set(float64(totalGroups))
@@ -245,14 +173,14 @@ func (e *DNSExporter) updateNameserverMetrics(nameserverGroups []netbird.Nameser
 		primaryCounts[group.Primary]++
 
 		// Count domains per group
-		e.nameserverGroupDomains.WithLabelValues(group.ID, group.Name).Set(float64(len(group.Domains)))
+		e.nameserverGroupDomains.WithLabelValues(group.Id, group.Name).Set(float64(len(group.Domains)))
 
 		// Count nameservers per group
-		e.nameserversTotal.WithLabelValues(group.ID, group.Name).Set(float64(len(group.Nameservers)))
+		e.nameserversTotal.WithLabelValues(group.Id, group.Name).Set(float64(len(group.Nameservers)))
 
 		// Count nameserver types and ports
 		for _, ns := range group.Nameservers {
-			typeCounter[ns.NSType]++
+			typeCounter[string(ns.NsType)]++
 			portCounter[strconv.Itoa(ns.Port)]++
 		}
 	}
@@ -286,9 +214,9 @@ func (e *DNSExporter) updateNameserverMetrics(nameserverGroups []netbird.Nameser
 }
 
 // updateDNSSettingsMetrics updates Prometheus metrics based on DNS settings data
-func (e *DNSExporter) updateDNSSettingsMetrics(dnsSettings *netbird.DNSSettings) {
+func (e *DNSExporter) updateDNSSettingsMetrics(dnsSettings *api.DNSSettings) {
 	// Count disabled management groups
-	disabledCount := len(dnsSettings.Items.DisabledManagementGroups)
+	disabledCount := len(dnsSettings.DisabledManagementGroups)
 	e.dnsManagementDisabled.WithLabelValues().Set(float64(disabledCount))
 
 	logrus.WithField("disabled_management_groups", disabledCount).Debug("Updated DNS settings metrics")

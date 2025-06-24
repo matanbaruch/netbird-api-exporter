@@ -1,19 +1,18 @@
 package exporters
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"context"
+	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 // NetworksExporter handles networks-specific metrics collection
 type NetworksExporter struct {
-	client *netbird.Client
+	client *nbclient.Client
 
 	// Prometheus metrics for networks
 	networksTotal            *prometheus.GaugeVec
@@ -27,7 +26,7 @@ type NetworksExporter struct {
 }
 
 // NewNetworksExporter creates a new networks exporter
-func NewNetworksExporter(client *netbird.Client) *NetworksExporter {
+func NewNetworksExporter(client *nbclient.Client) *NetworksExporter {
 	return &NetworksExporter{
 		client: client,
 
@@ -122,7 +121,10 @@ func (e *NetworksExporter) Collect(ch chan<- prometheus.Metric) {
 	e.networkRoutingPeersCount.Reset()
 	e.networkInfo.Reset()
 
-	networks, err := e.fetchNetworks()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	networks, err := e.client.Networks.List(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch networks")
 		e.scrapeErrorsTotal.WithLabelValues("fetch_networks").Inc()
@@ -142,46 +144,8 @@ func (e *NetworksExporter) Collect(ch chan<- prometheus.Metric) {
 	e.scrapeDuration.Collect(ch)
 }
 
-// fetchNetworks retrieves networks from NetBird API
-func (e *NetworksExporter) fetchNetworks() ([]netbird.Network, error) {
-	url := fmt.Sprintf("%s/api/networks", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching networks from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for networks")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var networks []netbird.Network
-	if err := json.NewDecoder(resp.Body).Decode(&networks); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.WithField("count", len(networks)).Debug("Successfully fetched networks from API")
-
-	return networks, nil
-}
-
 // updateMetrics updates Prometheus metrics based on networks data
-func (e *NetworksExporter) updateMetrics(networks []netbird.Network) {
+func (e *NetworksExporter) updateMetrics(networks []api.Network) {
 	totalNetworks := len(networks)
 	totalRouters := 0
 	totalResources := 0
@@ -189,8 +153,12 @@ func (e *NetworksExporter) updateMetrics(networks []netbird.Network) {
 	totalRoutingPeers := 0
 
 	for _, network := range networks {
-		networkLabels := []string{network.ID, network.Name}
-		infoLabels := []string{network.ID, network.Name, network.Description}
+		networkLabels := []string{network.Id, network.Name}
+		description := ""
+		if network.Description != nil {
+			description = *network.Description
+		}
+		infoLabels := []string{network.Id, network.Name, description}
 
 		routersCount := len(network.Routers)
 		resourcesCount := len(network.Resources)

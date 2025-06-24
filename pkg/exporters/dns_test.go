@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewDNSExporter(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewDNSExporter(client)
 
 	if exporter == nil {
@@ -52,7 +52,7 @@ func TestNewDNSExporter(t *testing.T) {
 }
 
 func TestDNSExporter_Describe(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewDNSExporter(client)
 
 	ch := make(chan *prometheus.Desc, 20)
@@ -85,14 +85,14 @@ func TestDNSExporter_Collect_Success(t *testing.T) {
 
 		switch r.URL.Path {
 		case "/api/dns/nameservers":
-			nameserverGroups := []netbird.NameserverGroup{
+			nameserverGroups := []api.NameserverGroup{
 				{
-					ID:          "ns1",
+					Id:          "ns1",
 					Name:        "primary-dns",
 					Description: "Primary DNS servers",
-					Nameservers: []netbird.Nameserver{
-						{IP: "8.8.8.8", NSType: "udp", Port: 53},
-						{IP: "8.8.4.4", NSType: "udp", Port: 53},
+					Nameservers: []api.Nameserver{
+						{Ip: "8.8.8.8", NsType: "udp", Port: 53},
+						{Ip: "8.8.4.4", NsType: "udp", Port: 53},
 					},
 					Enabled:              true,
 					Groups:               []string{"group1", "group2"},
@@ -101,11 +101,11 @@ func TestDNSExporter_Collect_Success(t *testing.T) {
 					SearchDomainsEnabled: true,
 				},
 				{
-					ID:          "ns2",
+					Id:          "ns2",
 					Name:        "secondary-dns",
 					Description: "Secondary DNS servers",
-					Nameservers: []netbird.Nameserver{
-						{IP: "1.1.1.1", NSType: "udp", Port: 53},
+					Nameservers: []api.Nameserver{
+						{Ip: "1.1.1.1", NsType: "udp", Port: 53},
 					},
 					Enabled:              false,
 					Groups:               []string{"group3"},
@@ -122,10 +122,8 @@ func TestDNSExporter_Collect_Success(t *testing.T) {
 			}
 
 		case "/api/dns/settings":
-			settings := netbird.DNSSettings{
-				Items: netbird.DNSSettingsItems{
-					DisabledManagementGroups: []string{"group4", "group5"},
-				},
+			settings := api.DNSSettings{
+				DisabledManagementGroups: []string{"group4", "group5"},
 			}
 
 			w.Header().Set("Content-Type", "application/json")
@@ -140,7 +138,7 @@ func TestDNSExporter_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewDNSExporter(client)
 
 	// Collect metrics
@@ -197,7 +195,7 @@ func TestDNSExporter_Collect_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewDNSExporter(client)
 
 	// Collect metrics
@@ -238,7 +236,7 @@ func TestDNSExporter_Collect_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewDNSExporter(client)
 
 	// Collect metrics
@@ -259,143 +257,19 @@ func TestDNSExporter_Collect_EmptyResponse(t *testing.T) {
 	}
 }
 
-func TestDNSExporter_FetchNameserverGroups_Success(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.URL.Path != "/api/dns/nameservers" {
-			http.NotFound(w, r)
-			return
-		}
-
-		accept := r.Header.Get("Accept")
-		if accept != "application/json" {
-			http.Error(w, "Invalid Accept header", http.StatusBadRequest)
-			return
-		}
-
-		token := r.Header.Get("Authorization")
-		if !strings.HasPrefix(token, "Token ") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		nameserverGroups := []netbird.NameserverGroup{
-			{
-				ID:          "ns1",
-				Name:        "test-dns",
-				Description: "Test DNS servers",
-				Nameservers: []netbird.Nameserver{
-					{IP: "8.8.8.8", NSType: "udp", Port: 53},
-				},
-				Enabled: true,
-				Primary: true,
-				Domains: []string{"example.com"},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(nameserverGroups); err != nil {
-			t.Errorf("Failed to encode nameserver groups: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewDNSExporter(client)
-
-	nameserverGroups, err := exporter.fetchNameserverGroups()
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(nameserverGroups) != 1 {
-		t.Errorf("Expected 1 nameserver group, got %d", len(nameserverGroups))
-	}
-
-	if nameserverGroups[0].Name != "test-dns" {
-		t.Errorf("Expected nameserver group name to be test-dns, got %s", nameserverGroups[0].Name)
-	}
-}
-
-func TestDNSExporter_FetchDNSSettings_Success(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.URL.Path != "/api/dns/settings" {
-			http.NotFound(w, r)
-			return
-		}
-
-		settings := netbird.DNSSettings{
-			Items: netbird.DNSSettingsItems{
-				DisabledManagementGroups: []string{"group1", "group2"},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(settings); err != nil {
-			t.Errorf("Failed to encode settings: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewDNSExporter(client)
-
-	settings, err := exporter.fetchDNSSettings()
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(settings.Items.DisabledManagementGroups) != 2 {
-		t.Errorf("Expected 2 disabled groups, got %d", len(settings.Items.DisabledManagementGroups))
-	}
-}
-
-func TestDNSExporter_FetchNameserverGroups_InvalidJSON(t *testing.T) {
-	// Create mock server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`invalid json`)); err != nil {
-			t.Errorf("Failed to write response: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewDNSExporter(client)
-
-	_, err := exporter.fetchNameserverGroups()
-	if err == nil {
-		t.Error("Expected error for invalid JSON")
-	}
-}
-
 func TestDNSExporter_UpdateNameserverMetrics(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewDNSExporter(client)
 
 	// Test data
-	nameserverGroups := []netbird.NameserverGroup{
+	nameserverGroups := []api.NameserverGroup{
 		{
-			ID:          "ns1",
+			Id:          "ns1",
 			Name:        "primary-dns",
 			Description: "Primary DNS",
-			Nameservers: []netbird.Nameserver{
-				{IP: "8.8.8.8", NSType: "udp", Port: 53},
-				{IP: "8.8.4.4", NSType: "udp", Port: 53},
+			Nameservers: []api.Nameserver{
+				{Ip: "8.8.8.8", NsType: "udp", Port: 53},
+				{Ip: "8.8.4.4", NsType: "udp", Port: 53},
 			},
 			Enabled:              true,
 			Primary:              true,
@@ -403,11 +277,11 @@ func TestDNSExporter_UpdateNameserverMetrics(t *testing.T) {
 			SearchDomainsEnabled: true,
 		},
 		{
-			ID:          "ns2",
+			Id:          "ns2",
 			Name:        "secondary-dns",
 			Description: "Secondary DNS",
-			Nameservers: []netbird.Nameserver{
-				{IP: "1.1.1.1", NSType: "udp", Port: 53},
+			Nameservers: []api.Nameserver{
+				{Ip: "1.1.1.1", NsType: "udp", Port: 53},
 			},
 			Enabled:              false,
 			Primary:              false,

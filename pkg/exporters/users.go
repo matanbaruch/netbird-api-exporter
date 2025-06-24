@@ -1,19 +1,18 @@
 package exporters
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"context"
+	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 // UsersExporter handles users-specific metrics collection
 type UsersExporter struct {
-	client *netbird.Client
+	client *nbclient.Client
 
 	// Prometheus metrics for users
 	usersTotal           *prometheus.GaugeVec
@@ -31,7 +30,7 @@ type UsersExporter struct {
 }
 
 // NewUsersExporter creates a new users exporter
-func NewUsersExporter(client *netbird.Client) *UsersExporter {
+func NewUsersExporter(client *nbclient.Client) *UsersExporter {
 	return &UsersExporter{
 		client: client,
 
@@ -166,7 +165,10 @@ func (e *UsersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.usersRestricted.Reset()
 	e.usersPermissions.Reset()
 
-	users, err := e.fetchUsers()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	users, err := e.client.Users.List(ctx)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to fetch users")
 		e.scrapeErrorsTotal.WithLabelValues("fetch_users").Inc()
@@ -190,46 +192,8 @@ func (e *UsersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.scrapeDuration.Collect(ch)
 }
 
-// fetchUsers retrieves users from NetBird API
-func (e *UsersExporter) fetchUsers() ([]netbird.User, error) {
-	url := fmt.Sprintf("%s/api/users", e.client.GetBaseURL())
-
-	logrus.WithField("url", url).Debug("Fetching users from NetBird API")
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Token %s", e.client.GetToken()))
-
-	resp, err := e.client.GetHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Warn("Failed to close response body for users")
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	var users []netbird.User
-	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
-
-	logrus.WithField("count", len(users)).Debug("Successfully fetched users from API")
-
-	return users, nil
-}
-
 // updateMetrics updates Prometheus metrics based on users data
-func (e *UsersExporter) updateMetrics(users []netbird.User) {
+func (e *UsersExporter) updateMetrics(users []api.User) {
 	totalUsers := len(users)
 
 	// Count by categories
@@ -257,10 +221,10 @@ func (e *UsersExporter) updateMetrics(users []netbird.User) {
 		if status == "" {
 			status = "unknown"
 		}
-		statusCounts[status]++
+		statusCounts[string(status)]++
 
 		// Service user classification
-		if user.IsServiceUser {
+		if user.IsServiceUser != nil && *user.IsServiceUser {
 			serviceUserCount++
 		} else {
 			regularUserCount++
@@ -274,30 +238,35 @@ func (e *UsersExporter) updateMetrics(users []netbird.User) {
 		}
 
 		// Issued type distribution
-		issued := user.Issued
-		if issued == "" {
-			issued = "unknown"
+		issued := "unknown"
+		if user.Issued != nil {
+			issued = *user.Issued
 		}
 		issuedCounts[issued]++
 
 		// Restricted permissions
-		if user.Permissions.IsRestricted {
+		if user.Permissions != nil && user.Permissions.IsRestricted {
 			restrictedCount++
 		} else {
 			unrestrictedCount++
 		}
 
 		// Individual user metrics
-		userLabels := []string{user.ID, user.Email, user.Name}
+		userLabels := []string{user.Id, user.Email, user.Name}
 
 		// Last login timestamp
-		if !user.LastLogin.IsZero() {
+		if user.LastLogin != nil && !user.LastLogin.IsZero() {
 			e.usersLastLogin.WithLabelValues(userLabels...).Set(float64(user.LastLogin.Unix()))
 		}
 
 		// Auto groups count
 		e.usersAutoGroupsCount.WithLabelValues(userLabels...).Set(float64(len(user.AutoGroups)))
-
+		if user.Permissions == nil {
+			user.Permissions = &api.UserPermissions{
+				IsRestricted: false,
+				Modules:      make(map[string]map[string]bool),
+			}
+		}
 		// User permissions per module and action
 		for module, permissions := range user.Permissions.Modules {
 			for permission, value := range permissions {
@@ -305,7 +274,7 @@ func (e *UsersExporter) updateMetrics(users []netbird.User) {
 				if value {
 					valueStr = "true"
 				}
-				e.usersPermissions.WithLabelValues(user.ID, user.Email, module, permission, valueStr).Set(1)
+				e.usersPermissions.WithLabelValues(user.Id, user.Email, module, permission, valueStr).Set(1)
 				totalPermissionsCount++
 			}
 		}

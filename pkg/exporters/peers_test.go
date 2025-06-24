@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewPeersExporter(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
 	if exporter == nil {
@@ -62,7 +62,7 @@ func TestNewPeersExporter(t *testing.T) {
 }
 
 func TestPeersExporter_Describe(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
 	ch := make(chan *prometheus.Desc, 20)
@@ -98,38 +98,36 @@ func TestPeersExporter_Collect_Success(t *testing.T) {
 			return
 		}
 
-		peers := []netbird.Peer{
+		peers := []api.Peer{
 			{
-				ID:                   "peer1",
-				Name:                 "test-peer-1",
-				IP:                   "100.64.0.1",
-				Connected:            true,
-				LastSeen:             time.Now(),
-				OS:                   "linux",
-				Groups:               []netbird.Group{{ID: "group1", Name: "test-group"}},
-				SSHEnabled:           true,
-				Hostname:             "test-host-1",
-				LoginExpired:         false,
-				ApprovalRequired:     false,
-				CountryCode:          "US",
-				CityName:             "New York",
-				AccessiblePeersCount: 5,
+				Id:               "peer1",
+				Name:             "test-peer-1",
+				Ip:               "100.64.0.1",
+				Connected:        true,
+				LastSeen:         time.Now(),
+				Os:               "linux",
+				Groups:           []api.GroupMinimum{{Id: "group1", Name: "test-group"}},
+				SshEnabled:       true,
+				Hostname:         "test-host-1",
+				LoginExpired:     false,
+				ApprovalRequired: false,
+				CountryCode:      "US",
+				CityName:         "New York",
 			},
 			{
-				ID:                   "peer2",
-				Name:                 "test-peer-2",
-				IP:                   "100.64.0.2",
-				Connected:            false,
-				LastSeen:             time.Now().Add(-time.Hour),
-				OS:                   "windows",
-				Groups:               []netbird.Group{{ID: "group2", Name: "another-group"}},
-				SSHEnabled:           false,
-				Hostname:             "test-host-2",
-				LoginExpired:         true,
-				ApprovalRequired:     true,
-				CountryCode:          "CA",
-				CityName:             "Toronto",
-				AccessiblePeersCount: 3,
+				Id:               "peer2",
+				Name:             "test-peer-2",
+				Ip:               "100.64.0.2",
+				Connected:        false,
+				LastSeen:         time.Now().Add(-time.Hour),
+				Os:               "windows",
+				Groups:           []api.GroupMinimum{{Id: "group2", Name: "another-group"}},
+				SshEnabled:       false,
+				Hostname:         "test-host-2",
+				LoginExpired:     true,
+				ApprovalRequired: true,
+				CountryCode:      "CA",
+				CityName:         "Toronto",
 			},
 		}
 
@@ -141,7 +139,7 @@ func TestPeersExporter_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Collect metrics
@@ -198,7 +196,7 @@ func TestPeersExporter_Collect_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Collect metrics
@@ -229,7 +227,7 @@ func TestPeersExporter_Collect_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Collect metrics
@@ -256,7 +254,7 @@ func TestPeersExporter_Collect_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Collect metrics
@@ -292,7 +290,7 @@ func TestPeersExporter_Collect_Unauthorized(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "invalid-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Collect metrics
@@ -309,36 +307,34 @@ func TestPeersExporter_Collect_Unauthorized(t *testing.T) {
 }
 
 func TestPeersExporter_UpdateMetrics(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Test data
-	peers := []netbird.Peer{
+	peers := []api.Peer{
 		{
-			ID:                   "peer1",
-			Name:                 "test-peer-1",
-			Connected:            true,
-			OS:                   "linux",
-			Groups:               []netbird.Group{{ID: "group1", Name: "test-group"}},
-			SSHEnabled:           true,
-			LoginExpired:         false,
-			ApprovalRequired:     false,
-			CountryCode:          "US",
-			CityName:             "New York",
-			AccessiblePeersCount: 5,
+			Id:               "peer1",
+			Name:             "test-peer-1",
+			Connected:        true,
+			Os:               "linux",
+			Groups:           []api.GroupMinimum{{Id: "group1", Name: "test-group"}},
+			SshEnabled:       true,
+			LoginExpired:     false,
+			ApprovalRequired: false,
+			CountryCode:      "US",
+			CityName:         "New York",
 		},
 		{
-			ID:                   "peer2",
-			Name:                 "test-peer-2",
-			Connected:            false,
-			OS:                   "windows",
-			Groups:               []netbird.Group{{ID: "group1", Name: "test-group"}},
-			SSHEnabled:           false,
-			LoginExpired:         true,
-			ApprovalRequired:     true,
-			CountryCode:          "US",
-			CityName:             "Los Angeles",
-			AccessiblePeersCount: 2,
+			Id:               "peer2",
+			Name:             "test-peer-2",
+			Connected:        false,
+			Os:               "windows",
+			Groups:           []api.GroupMinimum{{Id: "group1", Name: "test-group"}},
+			SshEnabled:       false,
+			LoginExpired:     true,
+			ApprovalRequired: true,
+			CountryCode:      "US",
+			CityName:         "Los Angeles",
 		},
 	}
 
@@ -372,19 +368,19 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 }
 
 func TestPeersExporter_MetricLabels(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Test data with specific values for label verification
-	peers := []netbird.Peer{
+	peers := []api.Peer{
 		{
-			ID:          "peer1",
+			Id:          "peer1",
 			Name:        "test-peer",
 			Connected:   true,
-			OS:          "linux",
+			Os:          "linux",
 			CountryCode: "US",
 			CityName:    "New York",
-			Groups:      []netbird.Group{{ID: "group1", Name: "test-group"}},
+			Groups:      []api.GroupMinimum{{Id: "group1", Name: "test-group"}},
 		},
 	}
 
@@ -419,18 +415,18 @@ func TestPeersExporter_MetricLabels(t *testing.T) {
 }
 
 func TestPeersExporter_ConnectionStatusByName(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
 	// Test data with both connected and disconnected peers
-	peers := []netbird.Peer{
+	peers := []api.Peer{
 		{
-			ID:        "peer1",
+			Id:        "peer1",
 			Name:      "connected-peer",
 			Connected: true,
 		},
 		{
-			ID:        "peer2",
+			Id:        "peer2",
 			Name:      "disconnected-peer",
 			Connected: false,
 		},

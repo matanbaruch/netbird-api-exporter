@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
+	"github.com/netbirdio/netbird/util"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewUsersExporter(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewUsersExporter(client)
 
 	if exporter == nil {
@@ -49,7 +50,7 @@ func TestNewUsersExporter(t *testing.T) {
 }
 
 func TestUsersExporter_Describe(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewUsersExporter(client)
 
 	ch := make(chan *prometheus.Desc, 20)
@@ -85,20 +86,25 @@ func TestUsersExporter_Collect_Success(t *testing.T) {
 			return
 		}
 
-		users := []netbird.User{
+		lastTimeNow := time.Now()
+		lastTime24 := lastTimeNow.Add(-time.Hour * 24)
+		lastTime1 := lastTimeNow.Add(-time.Hour * 1)
+		issuedAPI := "api"
+		issuedIntegration := "integration"
+		users := []api.User{
 			{
-				ID:            "user1",
+				Id:            "user1",
 				Email:         "admin@example.com",
 				Name:          "Admin User",
 				Role:          "admin",
 				Status:        "active",
-				LastLogin:     time.Now(),
+				LastLogin:     &lastTimeNow,
 				AutoGroups:    []string{"group1", "group2"},
-				IsCurrent:     false,
-				IsServiceUser: false,
+				IsCurrent:     util.False(),
+				IsServiceUser: util.False(),
 				IsBlocked:     false,
-				Issued:        "api",
-				Permissions: netbird.UserPermissions{
+				Issued:        &issuedAPI,
+				Permissions: &api.UserPermissions{
 					IsRestricted: false,
 					Modules: map[string]map[string]bool{
 						"peers": {
@@ -110,18 +116,18 @@ func TestUsersExporter_Collect_Success(t *testing.T) {
 				},
 			},
 			{
-				ID:            "user2",
+				Id:            "user2",
 				Email:         "service@example.com",
 				Name:          "Service User",
 				Role:          "user",
 				Status:        "active",
-				LastLogin:     time.Now().Add(-time.Hour),
+				LastLogin:     &lastTime1,
 				AutoGroups:    []string{"group1"},
-				IsCurrent:     false,
-				IsServiceUser: true,
+				IsCurrent:     util.False(),
+				IsServiceUser: util.True(),
 				IsBlocked:     false,
-				Issued:        "integration",
-				Permissions: netbird.UserPermissions{
+				Issued:        &issuedIntegration,
+				Permissions: &api.UserPermissions{
 					IsRestricted: true,
 					Modules: map[string]map[string]bool{
 						"peers": {
@@ -133,18 +139,18 @@ func TestUsersExporter_Collect_Success(t *testing.T) {
 				},
 			},
 			{
-				ID:            "user3",
+				Id:            "user3",
 				Email:         "blocked@example.com",
 				Name:          "Blocked User",
 				Role:          "user",
 				Status:        "inactive",
-				LastLogin:     time.Now().Add(-24 * time.Hour),
+				LastLogin:     &lastTime24,
 				AutoGroups:    []string{},
-				IsCurrent:     false,
-				IsServiceUser: false,
+				IsCurrent:     util.False(),
+				IsServiceUser: util.False(),
 				IsBlocked:     true,
-				Issued:        "api",
-				Permissions: netbird.UserPermissions{
+				Issued:        &issuedAPI,
+				Permissions: &api.UserPermissions{
 					IsRestricted: false,
 					Modules:      map[string]map[string]bool{},
 				},
@@ -159,7 +165,7 @@ func TestUsersExporter_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewUsersExporter(client)
 
 	// Collect metrics
@@ -216,7 +222,7 @@ func TestUsersExporter_Collect_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewUsersExporter(client)
 
 	// Collect metrics
@@ -247,7 +253,7 @@ func TestUsersExporter_Collect_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewUsersExporter(client)
 
 	// Collect metrics
@@ -269,23 +275,26 @@ func TestUsersExporter_Collect_EmptyResponse(t *testing.T) {
 }
 
 func TestUsersExporter_UpdateMetrics(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewUsersExporter(client)
 
 	// Test data
-	users := []netbird.User{
+	issuedAPI := "api"
+	issuedIntegration := "integration"
+	lastLogin := time.Now()
+	users := []api.User{
 		{
-			ID:            "user1",
+			Id:            "user1",
 			Email:         "admin@example.com",
 			Name:          "Admin User",
 			Role:          "admin",
 			Status:        "active",
-			LastLogin:     time.Now(),
+			LastLogin:     &lastLogin,
 			AutoGroups:    []string{"group1", "group2"},
-			IsServiceUser: false,
+			IsServiceUser: util.False(),
 			IsBlocked:     false,
-			Issued:        "api",
-			Permissions: netbird.UserPermissions{
+			Issued:        &issuedAPI,
+			Permissions: &api.UserPermissions{
 				IsRestricted: false,
 				Modules: map[string]map[string]bool{
 					"peers": {
@@ -296,16 +305,16 @@ func TestUsersExporter_UpdateMetrics(t *testing.T) {
 			},
 		},
 		{
-			ID:            "user2",
+			Id:            "user2",
 			Email:         "user@example.com",
 			Name:          "Regular User",
 			Role:          "user",
 			Status:        "active",
-			IsServiceUser: true,
+			IsServiceUser: util.True(),
 			IsBlocked:     false,
-			Issued:        "integration",
+			Issued:        &issuedIntegration,
 			AutoGroups:    []string{"group1"},
-			Permissions: netbird.UserPermissions{
+			Permissions: &api.UserPermissions{
 				IsRestricted: true,
 				Modules:      map[string]map[string]bool{},
 			},
@@ -341,88 +350,8 @@ func TestUsersExporter_UpdateMetrics(t *testing.T) {
 	}
 }
 
-func TestUsersExporter_FetchUsers_Success(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.URL.Path != "/api/users" {
-			http.NotFound(w, r)
-			return
-		}
-
-		accept := r.Header.Get("Accept")
-		if accept != "application/json" {
-			http.Error(w, "Invalid Accept header", http.StatusBadRequest)
-			return
-		}
-
-		token := r.Header.Get("Authorization")
-		if !strings.HasPrefix(token, "Token ") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		users := []netbird.User{
-			{
-				ID:     "user1",
-				Email:  "test@example.com",
-				Name:   "Test User",
-				Role:   "user",
-				Status: "active",
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(users); err != nil {
-			t.Errorf("Failed to encode users: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewUsersExporter(client)
-
-	users, err := exporter.fetchUsers()
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(users) != 1 {
-		t.Errorf("Expected 1 user, got %d", len(users))
-	}
-
-	if users[0].Email != "test@example.com" {
-		t.Errorf("Expected user email to be test@example.com, got %s", users[0].Email)
-	}
-}
-
-func TestUsersExporter_FetchUsers_InvalidJSON(t *testing.T) {
-	// Create mock server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`invalid json`)); err != nil {
-			t.Errorf("Failed to write response: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewUsersExporter(client)
-
-	_, err := exporter.fetchUsers()
-	if err == nil {
-		t.Error("Expected error for invalid JSON")
-	}
-}
-
 func TestUsersExporter_MetricsReset(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewUsersExporter(client)
 
 	// Set some initial values
@@ -430,7 +359,7 @@ func TestUsersExporter_MetricsReset(t *testing.T) {
 	exporter.usersByRole.WithLabelValues("admin").Set(5)
 
 	// Create empty users to test reset
-	users := []netbird.User{}
+	users := []api.User{}
 	exporter.updateMetrics(users)
 
 	// Collect and verify metrics are reset

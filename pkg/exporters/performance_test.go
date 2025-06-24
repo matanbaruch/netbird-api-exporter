@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestExporters_Performance_ConcurrentCollections(t *testing.T) {
@@ -382,7 +381,7 @@ func BenchmarkPeersExporter_Collect(b *testing.B) {
 	defer server.Close()
 
 	// Create exporter with test server client
-	exporter := NewPeersExporter(netbird.NewClient(server.URL, "test-token"))
+	exporter := NewPeersExporter(nbclient.New(server.URL, "test-token"))
 
 	b.ResetTimer()
 

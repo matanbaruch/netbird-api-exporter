@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewNetBirdExporter(t *testing.T) {
@@ -251,14 +250,15 @@ func TestNetBirdExporter_Collect_HandlesErrors(t *testing.T) {
 }
 
 func TestNetBirdExporter_Collect_HandlesPanics(t *testing.T) {
+	invalidClient := nbclient.New("http://invalid", "token")
 	// Create an exporter with a nil client to potentially cause panics
 	exporter := &NetBirdExporter{
 		client:           nil,
-		peersExporter:    NewPeersExporter(netbird.NewClient("http://invalid", "token")),
-		groupsExporter:   NewGroupsExporter(netbird.NewClient("http://invalid", "token")),
-		usersExporter:    NewUsersExporter(netbird.NewClient("http://invalid", "token")),
-		dnsExporter:      NewDNSExporter(netbird.NewClient("http://invalid", "token")),
-		networksExporter: NewNetworksExporter(netbird.NewClient("http://invalid", "token")),
+		peersExporter:    NewPeersExporter(invalidClient),
+		groupsExporter:   NewGroupsExporter(invalidClient),
+		usersExporter:    NewUsersExporter(invalidClient),
+		dnsExporter:      NewDNSExporter(invalidClient),
+		networksExporter: NewNetworksExporter(invalidClient),
 		scrapeDuration: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "netbird_exporter_scrape_duration_seconds",

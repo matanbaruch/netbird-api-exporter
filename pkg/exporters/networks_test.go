@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/matanbaruch/netbird-api-exporter/pkg/netbird"
 )
 
 func TestNewNetworksExporter(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewNetworksExporter(client)
 
 	if exporter == nil {
@@ -46,7 +46,7 @@ func TestNewNetworksExporter(t *testing.T) {
 }
 
 func TestNetworksExporter_Describe(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewNetworksExporter(client)
 
 	ch := make(chan *prometheus.Desc, 10)
@@ -82,20 +82,22 @@ func TestNetworksExporter_Collect_Success(t *testing.T) {
 			return
 		}
 
-		networks := []netbird.Network{
+		description1 := "Production network"
+		description2 := "Development network"
+		networks := []api.Network{
 			{
-				ID:                "net1",
+				Id:                "net1",
 				Name:              "production-network",
-				Description:       "Production network",
+				Description:       &description1,
 				Routers:           []string{"router1", "router2"},
 				RoutingPeersCount: 5,
 				Resources:         []string{"resource1", "resource2", "resource3"},
 				Policies:          []string{"policy1"},
 			},
 			{
-				ID:                "net2",
+				Id:                "net2",
 				Name:              "development-network",
-				Description:       "Development network",
+				Description:       &description2,
 				Routers:           []string{"router3"},
 				RoutingPeersCount: 2,
 				Resources:         []string{"resource4"},
@@ -111,7 +113,7 @@ func TestNetworksExporter_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Collect metrics
@@ -168,7 +170,7 @@ func TestNetworksExporter_Collect_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Collect metrics
@@ -199,7 +201,7 @@ func TestNetworksExporter_Collect_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Collect metrics
@@ -231,7 +233,7 @@ func TestNetworksExporter_Collect_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := netbird.NewClient(server.URL, "test-token")
+	client := nbclient.New(server.URL, "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Collect metrics
@@ -248,24 +250,26 @@ func TestNetworksExporter_Collect_InvalidJSON(t *testing.T) {
 }
 
 func TestNetworksExporter_UpdateMetrics(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Test data
-	networks := []netbird.Network{
+	description1 := "Test network 1"
+	description2 := "Test network 2"
+	networks := []api.Network{
 		{
-			ID:                "net1",
+			Id:                "net1",
 			Name:              "test-network-1",
-			Description:       "Test network 1",
+			Description:       &description1,
 			Routers:           []string{"router1", "router2"},
 			RoutingPeersCount: 5,
 			Resources:         []string{"resource1", "resource2"},
 			Policies:          []string{"policy1"},
 		},
 		{
-			ID:                "net2",
+			Id:                "net2",
 			Name:              "test-network-2",
-			Description:       "Test network 2",
+			Description:       &description2,
 			Routers:           []string{"router3"},
 			RoutingPeersCount: 3,
 			Resources:         []string{"resource3"},
@@ -302,89 +306,8 @@ func TestNetworksExporter_UpdateMetrics(t *testing.T) {
 	}
 }
 
-func TestNetworksExporter_FetchNetworks_Success(t *testing.T) {
-	// Create mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.URL.Path != "/api/networks" {
-			http.NotFound(w, r)
-			return
-		}
-
-		accept := r.Header.Get("Accept")
-		if accept != "application/json" {
-			http.Error(w, "Invalid Accept header", http.StatusBadRequest)
-			return
-		}
-
-		token := r.Header.Get("Authorization")
-		if !strings.HasPrefix(token, "Token ") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		networks := []netbird.Network{
-			{
-				ID:          "net1",
-				Name:        "test-network",
-				Description: "Test network",
-				Routers:     []string{"router1"},
-				Resources:   []string{"resource1"},
-				Policies:    []string{"policy1"},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(networks); err != nil {
-			t.Errorf("Failed to encode networks: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewNetworksExporter(client)
-
-	networks, err := exporter.fetchNetworks()
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(networks) != 1 {
-		t.Errorf("Expected 1 network, got %d", len(networks))
-	}
-
-	if networks[0].Name != "test-network" {
-		t.Errorf("Expected network name to be test-network, got %s", networks[0].Name)
-	}
-}
-
-func TestNetworksExporter_FetchNetworks_InvalidJSON(t *testing.T) {
-	// Create mock server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`invalid json`)); err != nil {
-			t.Errorf("Failed to write response: %v", err)
-		}
-	}))
-	defer server.Close()
-
-	client := netbird.NewClient(server.URL, "test-token")
-	exporter := NewNetworksExporter(client)
-
-	_, err := exporter.fetchNetworks()
-	if err == nil {
-		t.Error("Expected error for invalid JSON")
-	}
-}
-
 func TestNetworksExporter_MetricsReset(t *testing.T) {
-	client := netbird.NewClient("https://api.netbird.io", "test-token")
+	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewNetworksExporter(client)
 
 	// Set some initial values
@@ -392,7 +315,7 @@ func TestNetworksExporter_MetricsReset(t *testing.T) {
 	exporter.networkRoutersCount.WithLabelValues("net1", "test-network").Set(5)
 
 	// Create empty networks to test reset
-	networks := []netbird.Network{}
+	networks := []api.Network{}
 	exporter.updateMetrics(networks)
 
 	// Collect and verify metrics are reset
