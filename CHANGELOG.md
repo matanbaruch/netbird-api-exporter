@@ -405,3 +405,4 @@ When adding entries to the changelog, use the following guidelines:
 
 - Updated README.md to remove contributing section
 - Enhanced GitHub Actions workflow by adding permissions for write access
+- Adjusted checkout settings for better version control
