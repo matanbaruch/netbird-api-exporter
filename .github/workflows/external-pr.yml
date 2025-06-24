@@ -1,7 +1,8 @@
-name: External PR Tests (Requires Approval)
+name: External PR Workflow
 
-# This workflow runs tests for external contributor PRs
-# It uses pull_request_target to access secrets but requires manual approval for security
+# This implementation follows security best practices by separating PR code testing from privileged operations
+# See: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+
 permissions:
   contents: read
   packages: read
@@ -9,6 +10,7 @@ permissions:
   checks: write
   statuses: write
 
+# Step 1: Workflow to handle approval process (uses pull_request_target but doesn't checkout PR code)
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, labeled]
@@ -21,7 +23,7 @@ on:
     types: [created]
 
 concurrency:
-  group: external-pr-${{ github.event.pull_request.number }}
+  group: external-pr-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -168,7 +170,7 @@ jobs:
               });
             }
 
-  # Security check - only run if approved or from trusted user
+  # Security check - only run if approved or from trusted user - DOES NOT checkout PR code
   security-check:
     name: Security Check
     runs-on: ubuntu-latest
@@ -178,18 +180,23 @@ jobs:
       should-run: ${{ steps.check.outputs.approved }}
       is-external: ${{ steps.check.outputs.external }}
       pr-number: ${{ steps.check.outputs.pr-number }}
+      head-sha: ${{ steps.check.outputs.head-sha }}
+      head-ref: ${{ steps.check.outputs.head-ref }}
+      head-repo: ${{ steps.check.outputs.head-repo }}
     steps:
       - name: Check if PR should run tests
         id: check
         uses: actions/github-script@v7
         with:
           script: |
-            let prNumber, headRepoFullName, labels;
+            let prNumber, headRepoFullName, labels, headSha, headRef;
             
             // Handle different event types
             if (context.eventName === 'pull_request_target') {
               prNumber = context.payload.pull_request.number;
               headRepoFullName = context.payload.pull_request.head.repo.full_name;
+              headSha = context.payload.pull_request.head.sha;
+              headRef = context.payload.pull_request.head.ref;
               labels = context.payload.pull_request.labels.map(label => label.name);
               console.log('Triggered by pull_request_target event');
             } else if (context.eventName === 'issue_comment') {
@@ -203,6 +210,8 @@ jobs:
               });
               
               headRepoFullName = pr.head.repo.full_name;
+              headSha = pr.head.sha;
+              headRef = pr.head.ref;
               labels = pr.labels.map(label => label.name);
               console.log('Triggered by comment approval');
             }
@@ -212,11 +221,16 @@ jobs:
             
             console.log(`PR Number: ${prNumber}`);
             console.log(`Head Repo: ${headRepoFullName}`);
+            console.log(`Head SHA: ${headSha}`);
+            console.log(`Head Ref: ${headRef}`);
             console.log(`Current Repo: ${currentRepo}`);
             console.log(`Is External: ${isExternal}`);
             console.log(`Labels: ${labels.join(', ')}`);
             
             core.setOutput('pr-number', prNumber);
+            core.setOutput('head-sha', headSha);
+            core.setOutput('head-ref', headRef);
+            core.setOutput('head-repo', headRepoFullName);
             
             if (isExternal) {
               core.setOutput('external', 'true');
@@ -283,195 +297,40 @@ jobs:
               body: comment
             });
 
-  # Run basic tests that don't require secrets
-  basic-tests:
-    name: Basic Tests (No Secrets)
-    runs-on: ubuntu-latest
-    needs: security-check
-    if: needs.security-check.outputs.is-external == 'true'
-    steps:
-      - name: Get PR details for checkout
-        id: pr-details
+      # Dispatch a workflow to run the tests for this PR - safely separating privileged context from PR code
+      - name: Trigger PR test workflow
+        if: success()
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = ${{ needs.security-check.outputs.pr-number }};
-            const { data: pr } = await github.rest.pulls.get({
+            const prNumber = ${{ steps.check.outputs.pr-number }};
+            const isExternal = '${{ steps.check.outputs.external }}' === 'true';
+            const approved = '${{ steps.check.outputs.approved }}' === 'true';
+            const headSha = '${{ steps.check.outputs.head-sha }}';
+            const headRef = '${{ steps.check.outputs.head-ref }}';
+            const headRepo = '${{ steps.check.outputs.head-repo }}';
+            
+            // Trigger the PR tests workflow
+            await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: prNumber
+              workflow_id: 'pr-tests.yml', 
+              ref: 'main', // Run workflow from main branch, NOT PR branch
+              inputs: {
+                pr_number: String(prNumber),
+                head_sha: headSha,
+                head_ref: headRef, 
+                head_repo: headRepo,
+                is_external: String(isExternal),
+                is_approved: String(approved)
+              }
             });
-            
-            core.setOutput('ref', pr.head.sha);
-            core.setOutput('repo', pr.head.repo.full_name);
 
-      - name: Checkout PR code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr-details.outputs.ref }}
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run linting
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
-
-      - name: Run unit tests
-        run: |
-          chmod +x scripts/run-tests.sh
-          ./scripts/run-tests.sh unit
-
-      - name: Run performance tests
-        run: |
-          ./scripts/run-tests.sh performance
-
-      - name: Run benchmark tests
-        run: |
-          ./scripts/run-tests.sh benchmark
-
-      - name: Build Docker image
-        run: |
-          docker build -t netbird-api-exporter:pr-${{ needs.security-check.outputs.pr-number }} .
-
-      - name: Test Docker image basic functionality
-        run: |
-          # Test help command
-          docker run --rm netbird-api-exporter:pr-${{ needs.security-check.outputs.pr-number }} --help
-          
-          # Test with dummy config (should fail gracefully)
-          docker run --rm \
-            -e NETBIRD_API_URL=https://api.example.com \
-            -e LOG_LEVEL=debug \
-            netbird-api-exporter:pr-${{ needs.security-check.outputs.pr-number }} &
-          
-          sleep 5
-          pkill -f "docker run" || true
-          echo "✅ Docker image basic functionality test passed"
-
-      - name: Validate Helm chart
-        run: |
-          # Install Helm
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          
-          # Lint chart
-          helm lint charts/netbird-api-exporter --strict
-          
-          # Test template generation with dummy values
-          helm template netbird-api-exporter charts/netbird-api-exporter \
-            --set netbird.apiToken="dummy-token" \
-            --set netbird.apiUrl="https://api.example.com" \
-            --dry-run > /dev/null
-
-  # Run full tests with secrets (only if approved)
-  full-tests:
-    name: Full Test Suite (With Secrets)
-    runs-on: ubuntu-latest
-    needs: [security-check, basic-tests]
-    if: needs.security-check.outputs.should-run == 'true'
-    environment: 
-      name: external-pr-testing
-      url: https://github.com/${{ github.repository }}/pull/${{ needs.security-check.outputs.pr-number }}
-    steps:
-      - name: Get PR details for checkout
-        id: pr-details
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = ${{ needs.security-check.outputs.pr-number }};
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-            
-            core.setOutput('ref', pr.head.sha);
-
-      - name: Checkout PR code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr-details.outputs.ref }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run integration tests
-        env:
-          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
-        run: |
-          chmod +x scripts/run-tests.sh
-          ./scripts/run-tests.sh integration
-
-      - name: Test Docker Compose
-        env:
-          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
-        run: |
-          docker compose up -d
-          sleep 15
-          
-          # Test metrics endpoint
-          curl -sSf http://localhost:8080/metrics
-          
-          docker compose down
-
-      - name: Test Helm Chart with Real Token
-        env:
-          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
-        run: |
-          # Install kubectl and kind
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-          
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
-          
-          # Install Helm
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          
-          # Create kind cluster
-          kind create cluster --name external-pr-test
-          
-          # Build and load image
-          docker build -t netbird-api-exporter:test .
-          kind load docker-image netbird-api-exporter:test --name external-pr-test
-          
-          # Deploy with real token
-          helm install netbird-test charts/netbird-api-exporter \
-            --set image.repository=netbird-api-exporter \
-            --set image.tag=test \
-            --set image.pullPolicy=Never \
-            --set netbird.apiToken="$NETBIRD_API_TOKEN" \
-            --wait --timeout=300s
-          
-          # Test deployment
-          kubectl wait --for=condition=available --timeout=300s deployment/netbird-test-netbird-api-exporter
-          kubectl port-forward deployment/netbird-test-netbird-api-exporter 8080:8080 &
-          sleep 10
-          curl -s http://localhost:8080/metrics
-          
-          # Cleanup
-          kind delete cluster --name external-pr-test
-
-  # Report results
+  # Report results summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [comment-approval, security-check, basic-tests, full-tests]
+    needs: [comment-approval, security-check]
     if: always() && needs.security-check.result != 'skipped'
     steps:
       - name: Generate summary
@@ -480,16 +339,14 @@ jobs:
           script: |
             const securityCheck = '${{ needs.security-check.outputs.should-run }}' === 'true';
             const isExternal = '${{ needs.security-check.outputs.is-external }}' === 'true';
-            const basicTests = '${{ needs.basic-tests.result }}';
-            const fullTests = '${{ needs.full-tests.result }}';
             const prNumber = ${{ needs.security-check.outputs.pr-number }};
             const wasCommentApproved = '${{ needs.comment-approval.outputs.approved }}' === 'true';
             
-            let summary = '## 🧪 External PR Test Results\n\n';
+            let summary = '## 🧪 External PR Test Workflow Status\n\n';
             
             if (wasCommentApproved) {
               summary += '### ✅ Approved via Comment\n';
-              summary += 'This PR was approved for testing via comment. Full test suite is running.\n\n';
+              summary += 'This PR was approved for testing via comment. Full test suite is being triggered.\n\n';
             } else if (isExternal && !securityCheck) {
               summary += '### ⚠️ Approval Required\n';
               summary += 'This external PR requires approval to run tests with secrets.\n\n';
@@ -499,13 +356,13 @@ jobs:
             summary += '|---------------|--------|----------|\n';
             
             if (isExternal) {
-              summary += `| Basic Tests | ${basicTests === 'success' ? '✅ Passed' : basicTests === 'skipped' ? '⏭️ Skipped' : '❌ Failed'} | Unit tests, linting, Docker build |\n`;
+              summary += `| Basic Tests | 🔄 Running | Unit tests, linting, Docker build |\n`;
             }
             
             if (securityCheck) {
-              summary += `| Integration Tests | ${fullTests === 'success' ? '✅ Passed' : fullTests === 'skipped' ? '⏭️ Skipped' : '❌ Failed'} | Tests with real NetBird API |\n`;
-              summary += `| Docker Compose | ${fullTests === 'success' ? '✅ Passed' : fullTests === 'skipped' ? '⏭️ Skipped' : '❌ Failed'} | Full stack testing |\n`;
-              summary += `| Helm Chart | ${fullTests === 'success' ? '✅ Passed' : fullTests === 'skipped' ? '⏭️ Skipped' : '❌ Failed'} | Kubernetes deployment testing |\n`;
+              summary += `| Integration Tests | 🔄 Running | Tests with real NetBird API |\n`;
+              summary += `| Docker Compose | 🔄 Running | Full stack testing |\n`;
+              summary += `| Helm Chart | 🔄 Running | Kubernetes deployment testing |\n`;
             } else if (isExternal) {
               summary += '| Integration Tests | 🔒 Requires Approval | Add \'approved-for-testing\' label or comment \'/approve\' |\n';
               summary += '| Docker Compose | 🔒 Requires Approval | Add \'approved-for-testing\' label or comment \'/approve\' |\n';

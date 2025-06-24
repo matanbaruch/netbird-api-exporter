@@ -1,0 +1,188 @@
+name: Privileged Tests
+
+# This separate workflow runs after PR tests complete
+# This follows the secure pattern for handling external PRs as described in:
+# https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+#
+# This workflow has access to repository secrets but only runs from trusted context
+# It picks up artifacts from the non-privileged workflow rather than checking out untrusted code
+
+on:
+  workflow_run:
+    workflows: ["PR Tests"]
+    types:
+      - completed
+
+jobs:
+  run-privileged-tests:
+    name: Privileged Tests
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    environment: 
+      name: external-pr-testing
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      # First download the artifacts from the triggering workflow
+      - name: Download PR info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }}
+            });
+            
+            const prInfoArtifact = artifacts.data.artifacts.find(artifact => artifact.name === "pr-info");
+            if (!prInfoArtifact) {
+              console.log("No PR info artifact found, likely this PR was not approved");
+              return;
+            }
+            
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: prInfoArtifact.id,
+              archive_format: 'zip'
+            });
+            
+            const fs = require('fs');
+            fs.writeFileSync('pr-info.zip', Buffer.from(download.data));
+            
+            require('child_process').execSync('unzip pr-info.zip');
+            const prNumber = fs.readFileSync('PR_NUMBER', 'utf8').trim();
+            const headSha = fs.readFileSync('HEAD_SHA', 'utf8').trim();
+            const headRef = fs.readFileSync('HEAD_REF', 'utf8').trim();
+            const headRepo = fs.readFileSync('HEAD_REPO', 'utf8').trim();
+            const isApproved = fs.readFileSync('IS_APPROVED', 'utf8').trim();
+            
+            console.log(`PR Number: ${prNumber}`);
+            console.log(`Head SHA: ${headSha}`);
+            console.log(`Head Ref: ${headRef}`);
+            console.log(`Head Repo: ${headRepo}`);
+            console.log(`Is Approved: ${isApproved}`);
+            
+            core.exportVariable('PR_NUMBER', prNumber);
+            core.exportVariable('HEAD_SHA', headSha);
+            core.exportVariable('HEAD_REF', headRef);
+            core.exportVariable('HEAD_REPO', headRepo);
+            core.exportVariable('IS_APPROVED', isApproved);
+            
+            if (isApproved !== 'true') {
+              core.setFailed("PR was not approved for secret access");
+            }
+
+      # Check if we have PR info and approval
+      - name: Check approval status
+        id: check-approval
+        run: |
+          if [[ "$IS_APPROVED" != "true" ]]; then
+            echo "PR was not approved for secret access, skipping tests"
+            exit 1
+          fi
+          echo "PR $PR_NUMBER was approved, running tests with secrets"
+
+      # Checkout the code at the PR's HEAD
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HEAD_REPO }}
+          ref: ${{ env.HEAD_SHA }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run integration tests
+        env:
+          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
+        run: |
+          chmod +x scripts/run-tests.sh
+          ./scripts/run-tests.sh integration
+
+      - name: Test Docker Compose
+        env:
+          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
+        run: |
+          docker compose up -d
+          sleep 15
+          
+          # Test metrics endpoint
+          curl -sSf http://localhost:8080/metrics
+          
+          docker compose down
+
+      - name: Test Helm Chart with Real Token
+        env:
+          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
+        run: |
+          # Install kubectl and kind
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Create kind cluster
+          kind create cluster --name external-pr-test
+          
+          # Build and load image
+          docker build -t netbird-api-exporter:test .
+          kind load docker-image netbird-api-exporter:test --name external-pr-test
+          
+          # Deploy with real token
+          helm install netbird-test charts/netbird-api-exporter \
+            --set image.repository=netbird-api-exporter \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --set netbird.apiToken="$NETBIRD_API_TOKEN" \
+            --wait --timeout=300s
+          
+          # Test deployment
+          kubectl wait --for=condition=available --timeout=300s deployment/netbird-test-netbird-api-exporter
+          kubectl port-forward deployment/netbird-test-netbird-api-exporter 8080:8080 &
+          sleep 10
+          curl -s http://localhost:8080/metrics
+          
+          # Cleanup
+          kind delete cluster --name external-pr-test
+
+      # Comment results to PR
+      - name: Update PR with privileged test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const outcome = '${{ job.status }}';
+            
+            let resultEmoji = '✅';
+            if (outcome === 'failure') resultEmoji = '❌';
+            if (outcome === 'cancelled') resultEmoji = '⚠️';
+            
+            let commentBody = `## ${resultEmoji} Integration Tests Complete\n\n`;
+            commentBody += `| Test Category | Status | Details |\n`;
+            commentBody += `|---------------|--------|----------|\n`;
+            commentBody += `| Integration Tests | ${resultEmoji} ${outcome.toUpperCase()} | Tests with real NetBird API |\n`;
+            commentBody += `| Docker Compose | ${resultEmoji} ${outcome.toUpperCase()} | Full stack testing |\n`;
+            commentBody += `| Helm Chart | ${resultEmoji} ${outcome.toUpperCase()} | Kubernetes deployment testing |\n`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            }); 

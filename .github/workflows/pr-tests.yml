@@ -1,0 +1,188 @@
+name: PR Tests
+
+# This workflow runs the actual tests on PR code
+# It's triggered by the external-pr workflow and follows the secure pattern
+# for testing external pull requests as recommended by GitHub Security Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number'
+        required: true
+        type: string
+      head_sha:
+        description: 'Head SHA of the PR'
+        required: true
+        type: string
+      head_ref:
+        description: 'Head branch name of the PR'
+        required: true
+        type: string
+      head_repo:
+        description: 'Head repository of the PR'
+        required: true
+        type: string
+      is_external:
+        description: 'Whether this is an external PR'
+        required: true
+        type: string
+      is_approved:
+        description: 'Whether this PR is approved for secret access'
+        required: true
+        type: string
+
+jobs:
+  # Run basic tests (no secrets needed)
+  basic-tests:
+    name: Basic Tests (No Secrets)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.head_repo }}
+          ref: ${{ github.event.inputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run linting
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Run unit tests
+        run: |
+          chmod +x scripts/run-tests.sh
+          ./scripts/run-tests.sh unit
+
+      - name: Run performance tests
+        run: |
+          ./scripts/run-tests.sh performance
+
+      - name: Run benchmark tests
+        run: |
+          ./scripts/run-tests.sh benchmark
+
+      - name: Build Docker image
+        run: |
+          docker build -t netbird-api-exporter:pr-${{ github.event.inputs.pr_number }} .
+
+      - name: Test Docker image basic functionality
+        run: |
+          # Test help command
+          docker run --rm netbird-api-exporter:pr-${{ github.event.inputs.pr_number }} --help
+          
+          # Test with dummy config (should fail gracefully)
+          docker run --rm \
+            -e NETBIRD_API_URL=https://api.example.com \
+            -e LOG_LEVEL=debug \
+            netbird-api-exporter:pr-${{ github.event.inputs.pr_number }} &
+          
+          sleep 5
+          pkill -f "docker run" || true
+          echo "✅ Docker image basic functionality test passed"
+
+      - name: Validate Helm chart
+        run: |
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Lint chart
+          helm lint charts/netbird-api-exporter --strict
+          
+          # Test template generation with dummy values
+          helm template netbird-api-exporter charts/netbird-api-exporter \
+            --set netbird.apiToken="dummy-token" \
+            --set netbird.apiUrl="https://api.example.com" \
+            --dry-run > /dev/null
+
+      # Save test results as artifact
+      - name: Save test results
+        if: always()
+        run: |
+          mkdir -p test-results
+          echo "Unit tests, performance tests, benchmark tests completed" > test-results/basic-results.txt
+          echo "PR Number: ${{ github.event.inputs.pr_number }}" >> test-results/basic-results.txt
+          echo "SHA: ${{ github.event.inputs.head_sha }}" >> test-results/basic-results.txt
+          echo "External: ${{ github.event.inputs.is_external }}" >> test-results/basic-results.txt
+          echo "Approved: ${{ github.event.inputs.is_approved }}" >> test-results/basic-results.txt
+          echo "Basic tests completed at: $(date)" >> test-results/basic-results.txt
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+
+      # Comment results to PR
+      - name: Update PR with basic test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ github.event.inputs.pr_number }}');
+            const isExternal = '${{ github.event.inputs.is_external }}' === 'true';
+            const isApproved = '${{ github.event.inputs.is_approved }}' === 'true';
+            const outcome = '${{ job.status }}';
+            
+            let resultEmoji = '✅';
+            if (outcome === 'failure') resultEmoji = '❌';
+            if (outcome === 'cancelled') resultEmoji = '⚠️';
+            
+            let commentBody = `## ${resultEmoji} Basic Tests Complete\n\n`;
+            commentBody += `| Test Category | Status | Details |\n`;
+            commentBody += `|---------------|--------|----------|\n`;
+            commentBody += `| Basic Tests | ${resultEmoji} ${outcome.toUpperCase()} | Unit tests, linting, Docker build |\n`;
+            
+            if (isExternal && !isApproved) {
+              commentBody += '\n### 🔒 Integration Tests Still Require Approval\n';
+              commentBody += 'For a maintainer to run tests that require secrets, please:\n';
+              commentBody += '- Add the `approved-for-testing` label, or\n';
+              commentBody += '- Comment with `/approve`\n';
+            }
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+  # This job stores the PR information for potential future workflow_run jobs
+  save-pr-info:
+    name: Save PR Info
+    runs-on: ubuntu-latest
+    if: github.event.inputs.is_approved == 'true'
+    needs: basic-tests
+    steps:
+      - name: Create PR info file
+        run: |
+          mkdir -p pr-info
+          echo "${{ github.event.inputs.pr_number }}" > pr-info/PR_NUMBER
+          echo "${{ github.event.inputs.head_sha }}" > pr-info/HEAD_SHA
+          echo "${{ github.event.inputs.head_ref }}" > pr-info/HEAD_REF
+          echo "${{ github.event.inputs.head_repo }}" > pr-info/HEAD_REPO
+          echo "${{ github.event.inputs.is_external }}" > pr-info/IS_EXTERNAL
+          echo "${{ github.event.inputs.is_approved }}" > pr-info/IS_APPROVED
+
+      - name: Upload PR info
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-info
+          path: pr-info/
+          retention-days: 7 
