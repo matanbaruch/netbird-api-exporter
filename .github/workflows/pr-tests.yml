@@ -169,6 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.is_approved == 'true'
     needs: basic-tests
+    permissions:
+      contents: read
     steps:
       - name: Create PR info file
         run: |
