@@ -37,20 +37,19 @@ The exporter provides the following metrics:
 
 ### Peer Metrics
 
-| Metric Name                           | Type  | Description                                      | Labels                             |
-| ------------------------------------- | ----- | ------------------------------------------------ | ---------------------------------- |
-| `netbird_peers`                       | Gauge | Total number of NetBird peers                    | -                                  |
-| `netbird_peers_connected`             | Gauge | Number of connected/disconnected peers           | `connected`                        |
-| `netbird_peer_last_seen_timestamp`    | Gauge | Last seen timestamp for each peer                | `peer_id`, `peer_name`, `hostname` |
-| `netbird_peers_by_os`                 | Gauge | Number of peers by operating system              | `os`                               |
-| `netbird_peers_by_country`            | Gauge | Number of peers by country/city                  | `country_code`, `city_name`        |
-| `netbird_peers_by_group`              | Gauge | Number of peers by group                         | `group_id`, `group_name`           |
-| `netbird_peers_ssh_enabled`           | Gauge | Number of peers with SSH enabled/disabled        | `ssh_enabled`                      |
-| `netbird_peers_login_expired`         | Gauge | Number of peers with expired/valid login         | `login_expired`                    |
-| `netbird_peers_approval_required`     | Gauge | Number of peers requiring/not requiring approval | `approval_required`                |
-| `netbird_peer_accessible_peers_count` | Gauge | Number of accessible peers for each peer         | `peer_id`, `peer_name`             |
+| Metric Name                              | Type  | Description                                                                  | Labels                              |
+| ---------------------------------------- | ----- | ---------------------------------------------------------------------------- | ----------------------------------- |
+| `netbird_peers`                          | Gauge | Total number of NetBird peers                                                | -                                   |
+| `netbird_peers_connected`                | Gauge | Number of connected/disconnected peers                                       | `connected`                         |
+| `netbird_peer_last_seen_timestamp`       | Gauge | Last seen timestamp for each peer                                            | `peer_id`, `peer_name`, `hostname`  |
+| `netbird_peers_by_os`                    | Gauge | Number of peers by operating system                                          | `os`                                |
+| `netbird_peers_by_country`               | Gauge | Number of peers by country/city                                              | `country_code`, `city_name`         |
+| `netbird_peers_by_group`                 | Gauge | Number of peers by group                                                     | `group_id`, `group_name`            |
+| `netbird_peers_ssh_enabled`              | Gauge | Number of peers with SSH enabled/disabled                                    | `ssh_enabled`                       |
+| `netbird_peers_login_expired`            | Gauge | Number of peers with expired/valid login                                     | `login_expired`                     |
+| `netbird_peers_approval_required`        | Gauge | Number of peers requiring/not requiring approval                             | `approval_required`                 |
+| `netbird_peer_accessible_peers_count`    | Gauge | Number of accessible peers for each peer                                     | `peer_id`, `peer_name`              |
 | `netbird_peer_connection_status_by_name` | Gauge | Connection status of each peer by name (1 for connected, 0 for disconnected) | `peer_name`, `peer_id`, `connected` |
-
 
 ### Group Metrics Table
 
@@ -617,6 +616,17 @@ The project includes GitHub Actions workflows that automatically:
 - Verify code formatting
 - Run tests
 - Check for security issues
+
+#### External Contributor Testing
+
+For external contributors (from forks), we have a secure testing system:
+
+- **Basic tests run automatically** - Unit tests, linting, Docker builds (no secrets required)
+- **Integration tests require approval** - Tests with secrets need maintainer approval
+- **Easy approval process** - Maintainers can approve by commenting `/approve`
+- **Security-first approach** - Manual review required before accessing secrets
+
+See [External PR Testing Guide](docs/security/external-pr-testing.md) for details.
 
 ### Running Tests
 
