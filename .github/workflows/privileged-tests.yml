@@ -30,49 +30,177 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: ${{ github.event.workflow_run.id }}
-            });
-            
-            const prInfoArtifact = artifacts.data.artifacts.find(artifact => artifact.name === "pr-info");
-            if (!prInfoArtifact) {
-              console.log("No PR info artifact found, likely this PR was not approved");
-              return;
-            }
-            
-            const download = await github.rest.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: prInfoArtifact.id,
-              archive_format: 'zip'
-            });
-            
             const fs = require('fs');
-            fs.writeFileSync('pr-info.zip', Buffer.from(download.data));
+            const path = require('path');
             
-            require('child_process').execSync('unzip pr-info.zip');
-            const prNumber = fs.readFileSync('PR_NUMBER', 'utf8').trim();
-            const headSha = fs.readFileSync('HEAD_SHA', 'utf8').trim();
-            const headRef = fs.readFileSync('HEAD_REF', 'utf8').trim();
-            const headRepo = fs.readFileSync('HEAD_REPO', 'utf8').trim();
-            const isApproved = fs.readFileSync('IS_APPROVED', 'utf8').trim();
-            
-            console.log(`PR Number: ${prNumber}`);
-            console.log(`Head SHA: ${headSha}`);
-            console.log(`Head Ref: ${headRef}`);
-            console.log(`Head Repo: ${headRepo}`);
-            console.log(`Is Approved: ${isApproved}`);
-            
-            core.exportVariable('PR_NUMBER', prNumber);
-            core.exportVariable('HEAD_SHA', headSha);
-            core.exportVariable('HEAD_REF', headRef);
-            core.exportVariable('HEAD_REPO', headRepo);
-            core.exportVariable('IS_APPROVED', isApproved);
-            
-            if (isApproved !== 'true') {
-              core.setFailed("PR was not approved for secret access");
+            try {
+              // Add retry logic for artifact availability
+              let artifacts;
+              let retryCount = 0;
+              const maxRetries = 3;
+              
+              while (retryCount < maxRetries) {
+                try {
+                  artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: ${{ github.event.workflow_run.id }}
+                  });
+                  break;
+                } catch (error) {
+                  console.log(`Attempt ${retryCount + 1} failed: ${error.message}`);
+                  if (retryCount === maxRetries - 1) throw error;
+                  retryCount++;
+                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+                }
+              }
+              
+              const prInfoArtifact = artifacts.data.artifacts.find(artifact => artifact.name === "pr-info");
+              if (!prInfoArtifact) {
+                console.log("No PR info artifact found, likely this PR was not approved");
+                core.setFailed("No PR info artifact found - PR may not be approved for secret access");
+                return;
+              }
+              
+              console.log(`Found PR info artifact: ${prInfoArtifact.id}`);
+              
+              const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: prInfoArtifact.id,
+                archive_format: 'zip'
+              });
+              
+              // Write zip file
+              const zipPath = 'pr-info.zip';
+              fs.writeFileSync(zipPath, Buffer.from(download.data));
+              
+              // Use system unzip command with safety measures
+              // Create a temporary directory for extraction
+              const tempDir = 'temp_pr_info';
+              fs.mkdirSync(tempDir, { recursive: true });
+              
+              try {
+                // Use spawn for safer command execution with timeout
+                const { spawn } = require('child_process');
+                const unzipProcess = spawn('unzip', ['-j', zipPath, '-d', tempDir], {
+                  stdio: ['pipe', 'pipe', 'pipe'],
+                  timeout: 10000 // 10 second timeout
+                });
+                
+                await new Promise((resolve, reject) => {
+                  let stdout = '';
+                  let stderr = '';
+                  
+                  unzipProcess.stdout.on('data', (data) => {
+                    stdout += data.toString();
+                  });
+                  
+                  unzipProcess.stderr.on('data', (data) => {
+                    stderr += data.toString();
+                  });
+                  
+                  unzipProcess.on('close', (code) => {
+                    if (code === 0) {
+                      resolve(stdout);
+                    } else {
+                      reject(new Error(`Unzip failed with code ${code}: ${stderr}`));
+                    }
+                  });
+                  
+                  unzipProcess.on('error', (error) => {
+                    reject(error);
+                  });
+                });
+                
+                // Validate extracted files
+                const expectedFiles = ['PR_NUMBER', 'HEAD_SHA', 'HEAD_REF', 'HEAD_REPO', 'IS_EXTERNAL', 'IS_APPROVED'];
+                const extractedFiles = fs.readdirSync(tempDir);
+                
+                console.log(`Extracted files: ${extractedFiles.join(', ')}`);
+                
+                // Only process expected files
+                for (const expectedFile of expectedFiles) {
+                  const filePath = path.join(tempDir, expectedFile);
+                  if (fs.existsSync(filePath)) {
+                    const stats = fs.statSync(filePath);
+                    if (stats.size > 1024) { // 1KB limit
+                      console.log(`Warning: ${expectedFile} too large, skipping`);
+                      continue;
+                    }
+                    
+                    const content = fs.readFileSync(filePath, 'utf8').trim();
+                    if (content.length > 200) { // Additional safety check
+                      console.log(`Warning: ${expectedFile} content too long, truncating`);
+                      content = content.substring(0, 200);
+                    }
+                    
+                    // Move to current directory
+                    fs.writeFileSync(expectedFile, content);
+                  }
+                }
+                
+              } finally {
+                // Clean up temporary directory and zip file
+                if (fs.existsSync(tempDir)) {
+                  fs.rmSync(tempDir, { recursive: true, force: true });
+                }
+                if (fs.existsSync(zipPath)) {
+                  fs.unlinkSync(zipPath);
+                }
+              }
+              
+              // Read and validate PR info
+              const prNumber = fs.existsSync('PR_NUMBER') ? fs.readFileSync('PR_NUMBER', 'utf8').trim() : '';
+              const headSha = fs.existsSync('HEAD_SHA') ? fs.readFileSync('HEAD_SHA', 'utf8').trim() : '';
+              const headRef = fs.existsSync('HEAD_REF') ? fs.readFileSync('HEAD_REF', 'utf8').trim() : '';
+              const headRepo = fs.existsSync('HEAD_REPO') ? fs.readFileSync('HEAD_REPO', 'utf8').trim() : '';
+              const isApproved = fs.existsSync('IS_APPROVED') ? fs.readFileSync('IS_APPROVED', 'utf8').trim() : '';
+              
+              // Validate required fields
+              if (!prNumber || !headSha || !headRef || !headRepo || !isApproved) {
+                core.setFailed("Missing required PR info fields");
+                return;
+              }
+              
+              // Validate PR number is numeric
+              if (!/^\d+$/.test(prNumber)) {
+                core.setFailed("Invalid PR number format");
+                return;
+              }
+              
+              // Validate SHA format (40 hex characters)
+              if (!/^[a-f0-9]{40}$/.test(headSha)) {
+                core.setFailed("Invalid SHA format");
+                return;
+              }
+              
+              console.log(`PR Number: ${prNumber}`);
+              console.log(`Head SHA: ${headSha}`);
+              console.log(`Head Ref: ${headRef}`);
+              console.log(`Head Repo: ${headRepo}`);
+              console.log(`Is Approved: ${isApproved}`);
+              
+              core.exportVariable('PR_NUMBER', prNumber);
+              core.exportVariable('HEAD_SHA', headSha);
+              core.exportVariable('HEAD_REF', headRef);
+              core.exportVariable('HEAD_REPO', headRepo);
+              core.exportVariable('IS_APPROVED', isApproved);
+              
+              if (isApproved !== 'true') {
+                core.setFailed("PR was not approved for secret access");
+              }
+              
+              // Clean up extracted files
+              expectedFiles.forEach(file => {
+                if (fs.existsSync(file)) {
+                  fs.unlinkSync(file);
+                }
+              });
+              
+            } catch (error) {
+              console.error(`Error processing PR info artifact: ${error.message}`);
+              core.setFailed(`Failed to process PR info: ${error.message}`);
             }
 
       # Check if we have PR info and approval

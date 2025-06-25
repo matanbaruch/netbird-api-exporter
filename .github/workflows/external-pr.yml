@@ -86,57 +86,97 @@ jobs:
               
               if (canApprove) {
                 // Get PR details to check if it's external
-                const { data: pr } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber
-                });
-                
-                const isExternal = pr.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo;
-                console.log(`PR is external: ${isExternal}`);
-                
-                if (isExternal) {
-                  core.setOutput('approved', 'true');
-                  core.setOutput('pr-number', prNumber);
-                  
-                  // Add approval label
-                  await github.rest.issues.addLabels({
+                try {
+                  const { data: pr } = await github.rest.pulls.get({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    issue_number: prNumber,
-                    labels: ['approved-for-testing']
+                    pull_number: prNumber
                   });
                   
-                  // Add confirmation comment
-                  const confirmationComment = '## ✅ Approved via Comment\n\n' +
-                    'Approved by: @' + author + '\n' +
-                    'Approved on: ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC\n' +
-                    'Trigger comment: "' + context.payload.comment.body.trim() + '"\n\n' +
-                    'This external PR has been approved for testing with secrets. The full test suite will run automatically.\n\n' +
-                    'Tests that will now run:\n' +
-                    '- Integration tests with real NetBird API\n' +
-                    '- Docker Compose tests\n' +
-                    '- Helm chart tests with real secrets\n\n' +
-                    'Future commits to this PR will automatically run the full test suite without requiring re-approval.';
+                  const isExternal = pr.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo;
+                  console.log(`PR is external: ${isExternal}`);
                   
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: prNumber,
-                    body: confirmationComment
-                  });
-                  
-                  console.log('PR approved and label added');
-                } else {
+                  if (isExternal) {
+                    core.setOutput('approved', 'true');
+                    core.setOutput('pr-number', prNumber);
+                    
+                    // Add approval label with retry logic
+                    let labelAdded = false;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                      try {
+                        await github.rest.issues.addLabels({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: prNumber,
+                          labels: ['approved-for-testing']
+                        });
+                        labelAdded = true;
+                        break;
+                      } catch (labelError) {
+                        console.log(`Label addition attempt ${attempt} failed: ${labelError.message}`);
+                        if (attempt === 3) {
+                          console.log('Failed to add label after 3 attempts, continuing anyway');
+                        } else {
+                          await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                      }
+                    }
+                    
+                    // Add confirmation comment
+                    const confirmationComment = '## ✅ Approved via Comment\n\n' +
+                      'Approved by: @' + author + '\n' +
+                      'Approved on: ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC\n' +
+                      'Trigger comment: "' + context.payload.comment.body.trim() + '"\n\n' +
+                      'This external PR has been approved for testing with secrets. The full test suite will run automatically.\n\n' +
+                      'Tests that will now run:\n' +
+                      '- Integration tests with real NetBird API\n' +
+                      '- Docker Compose tests\n' +
+                      '- Helm chart tests with real secrets\n\n' +
+                      'Future commits to this PR will automatically run the full test suite without requiring re-approval.' +
+                      (labelAdded ? '' : '\n\n⚠️ Note: Approval label could not be added automatically. Workflow will still proceed.');
+                    
+                    try {
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: confirmationComment
+                      });
+                    } catch (commentError) {
+                      console.log(`Failed to create confirmation comment: ${commentError.message}`);
+                    }
+                    
+                    console.log('PR approved and label added');
+                  } else {
+                    core.setOutput('approved', 'false');
+                    core.setOutput('pr-number', prNumber);
+                    
+                    try {
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: `@${author} This is not an external PR (same repository), so approval is not needed. Tests run automatically for internal PRs.`
+                      });
+                    } catch (commentError) {
+                      console.log(`Failed to create internal PR comment: ${commentError.message}`);
+                    }
+                  }
+                } catch (prError) {
+                  console.log(`Error fetching PR details: ${prError.message}`);
                   core.setOutput('approved', 'false');
                   core.setOutput('pr-number', prNumber);
                   
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: prNumber,
-                    body: `@${author} This is not an external PR (same repository), so approval is not needed. Tests run automatically for internal PRs.`
-                  });
+                  try {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: prNumber,
+                      body: `@${author} Error fetching PR details. Please try again later or contact a maintainer.`
+                    });
+                  } catch (commentError) {
+                    console.log(`Failed to create error comment: ${commentError.message}`);
+                  }
                 }
               } else {
                 core.setOutput('approved', 'false');
@@ -150,24 +190,32 @@ jobs:
                   '**Your current permission level:** `' + permission + '`\n\n' +
                   'If you believe this is an error, please contact a repository maintainer.';
                 
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: prNumber,
-                  body: permissionDeniedMessage
-                });
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: permissionDeniedMessage
+                  });
+                } catch (commentError) {
+                  console.log(`Failed to create permission denied comment: ${commentError.message}`);
+                }
               }
             } catch (error) {
               console.log(`Error checking permissions: ${error.message}`);
               core.setOutput('approved', 'false');
               core.setOutput('pr-number', prNumber);
               
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: `@${author} Error checking permissions. Please try again or contact a maintainer.`
-              });
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: `@${author} Error checking permissions: ${error.message}. Please try again or contact a maintainer.`
+                });
+              } catch (commentError) {
+                console.log(`Failed to create error comment: ${commentError.message}`);
+              }
             }
 
   # Security check - only run if approved or from trusted user - DOES NOT checkout PR code
