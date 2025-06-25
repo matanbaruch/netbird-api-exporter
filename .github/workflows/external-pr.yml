@@ -1,0 +1,443 @@
+name: External PR Workflow
+
+# This implementation follows security best practices by separating PR code testing from privileged operations
+# See: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+# Step 1: Workflow to handle approval process (uses pull_request_target but doesn't checkout PR code)
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/docs.yml'
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: external-pr-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Handle comment-based approval
+  comment-approval:
+    name: Comment-based Approval
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+    outputs:
+      approved: ${{ steps.check-approval.outputs.approved }}
+      pr-number: ${{ steps.check-approval.outputs.pr-number }}
+    steps:
+      - name: Check if comment approves PR for testing
+        id: check-approval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment.body.toLowerCase().trim();
+            const author = context.payload.comment.user.login;
+            const prNumber = context.payload.issue.number;
+            
+            console.log(`Comment: "${comment}"`);
+            console.log(`Author: ${author}`);
+            console.log(`PR Number: ${prNumber}`);
+            
+            // Check if comment contains approval keywords
+            const approvalKeywords = [
+              '/approve',
+              '/approve-testing',
+              'approved for testing',
+              'approve for testing',
+              '/test-approved'
+            ];
+            
+            const isApprovalComment = approvalKeywords.some(keyword => 
+              comment.includes(keyword)
+            );
+            
+            if (!isApprovalComment) {
+              console.log('Comment does not contain approval keywords');
+              core.setOutput('approved', 'false');
+              core.setOutput('pr-number', prNumber);
+              return;
+            }
+            
+            console.log('Comment contains approval keywords, checking permissions...');
+            
+            // Check if user has permission to approve (write access or above)
+            try {
+              const { data: collaborator } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: author
+              });
+              
+              const permission = collaborator.permission;
+              const canApprove = ['admin', 'maintain', 'write'].includes(permission);
+              
+              console.log(`User ${author} has ${permission} permission. Can approve: ${canApprove}`);
+              
+              if (canApprove) {
+                // Get PR details to check if it's external
+                try {
+                  const { data: pr } = await github.rest.pulls.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber
+                  });
+                  
+                  const isExternal = pr.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo;
+                  console.log(`PR is external: ${isExternal}`);
+                  
+                  if (isExternal) {
+                    core.setOutput('approved', 'true');
+                    core.setOutput('pr-number', prNumber);
+                    
+                    // Add approval label with retry logic
+                    let labelAdded = false;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                      try {
+                        await github.rest.issues.addLabels({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: prNumber,
+                          labels: ['approved-for-testing']
+                        });
+                        labelAdded = true;
+                        break;
+                      } catch (labelError) {
+                        console.log(`Label addition attempt ${attempt} failed: ${labelError.message}`);
+                        if (attempt === 3) {
+                          console.log('Failed to add label after 3 attempts, continuing anyway');
+                        } else {
+                          await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                      }
+                    }
+                    
+                    // Add confirmation comment
+                    const confirmationComment = '## ✅ Approved via Comment\n\n' +
+                      'Approved by: @' + author + '\n' +
+                      'Approved on: ' + new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC\n' +
+                      'Trigger comment: "' + context.payload.comment.body.trim() + '"\n\n' +
+                      'This external PR has been approved for testing with secrets. The full test suite will run automatically.\n\n' +
+                      'Tests that will now run:\n' +
+                      '- Integration tests with real NetBird API\n' +
+                      '- Docker Compose tests\n' +
+                      '- Helm chart tests with real secrets\n\n' +
+                      'Future commits to this PR will automatically run the full test suite without requiring re-approval.' +
+                      (labelAdded ? '' : '\n\n⚠️ Note: Approval label could not be added automatically. Workflow will still proceed.');
+                    
+                    try {
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: confirmationComment
+                      });
+                    } catch (commentError) {
+                      console.log(`Failed to create confirmation comment: ${commentError.message}`);
+                    }
+                    
+                    console.log('PR approved and label added');
+                  } else {
+                    core.setOutput('approved', 'false');
+                    core.setOutput('pr-number', prNumber);
+                    
+                    try {
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: prNumber,
+                        body: `@${author} This is not an external PR (same repository), so approval is not needed. Tests run automatically for internal PRs.`
+                      });
+                    } catch (commentError) {
+                      console.log(`Failed to create internal PR comment: ${commentError.message}`);
+                    }
+                  }
+                } catch (prError) {
+                  console.log(`Error fetching PR details: ${prError.message}`);
+                  core.setOutput('approved', 'false');
+                  core.setOutput('pr-number', prNumber);
+                  
+                  try {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: prNumber,
+                      body: `@${author} Error fetching PR details. Please try again later or contact a maintainer.`
+                    });
+                  } catch (commentError) {
+                    console.log(`Failed to create error comment: ${commentError.message}`);
+                  }
+                }
+              } else {
+                core.setOutput('approved', 'false');
+                core.setOutput('pr-number', prNumber);
+                
+                const permissionDeniedMessage = '@' + author + ' ❌ **Permission Denied**\n\n' +
+                  'You don\'t have permission to approve external PRs for testing.\n\n' +
+                  '**Who can approve:**\n' +
+                  '- Repository maintainers with **write**, **maintain**, or **admin** access\n' +
+                  '- Organization members with appropriate permissions\n\n' +
+                  '**Your current permission level:** `' + permission + '`\n\n' +
+                  'If you believe this is an error, please contact a repository maintainer.';
+                
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: permissionDeniedMessage
+                  });
+                } catch (commentError) {
+                  console.log(`Failed to create permission denied comment: ${commentError.message}`);
+                }
+              }
+            } catch (error) {
+              console.log(`Error checking permissions: ${error.message}`);
+              core.setOutput('approved', 'false');
+              core.setOutput('pr-number', prNumber);
+              
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: `@${author} Error checking permissions: ${error.message}. Please try again or contact a maintainer.`
+                });
+              } catch (commentError) {
+                console.log(`Failed to create error comment: ${commentError.message}`);
+              }
+            }
+
+  # Security check - only run if approved or from trusted user - DOES NOT checkout PR code
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    needs: [comment-approval]
+    if: always() && (github.event_name == 'pull_request_target' || needs.comment-approval.outputs.approved == 'true')
+    outputs:
+      should-run: ${{ steps.check.outputs.approved }}
+      is-external: ${{ steps.check.outputs.external }}
+      pr-number: ${{ steps.check.outputs.pr-number }}
+      head-sha: ${{ steps.check.outputs.head-sha }}
+      head-ref: ${{ steps.check.outputs.head-ref }}
+      head-repo: ${{ steps.check.outputs.head-repo }}
+    steps:
+      - name: Check if PR should run tests
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber, headRepoFullName, labels, headSha, headRef;
+            
+            // Handle different event types
+            if (context.eventName === 'pull_request_target') {
+              prNumber = context.payload.pull_request.number;
+              headRepoFullName = context.payload.pull_request.head.repo.full_name;
+              headSha = context.payload.pull_request.head.sha;
+              headRef = context.payload.pull_request.head.ref;
+              labels = context.payload.pull_request.labels.map(label => label.name);
+              console.log('Triggered by pull_request_target event');
+            } else if (context.eventName === 'issue_comment') {
+              prNumber = ${{ needs.comment-approval.outputs.pr-number }};
+              
+              // Get PR details from API
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              
+              headRepoFullName = pr.head.repo.full_name;
+              headSha = pr.head.sha;
+              headRef = pr.head.ref;
+              labels = pr.labels.map(label => label.name);
+              console.log('Triggered by comment approval');
+            }
+            
+            const currentRepo = `${context.repo.owner}/${context.repo.repo}`;
+            const isExternal = headRepoFullName !== currentRepo;
+            
+            console.log(`PR Number: ${prNumber}`);
+            console.log(`Head Repo: ${headRepoFullName}`);
+            console.log(`Head SHA: ${headSha}`);
+            console.log(`Head Ref: ${headRef}`);
+            console.log(`Current Repo: ${currentRepo}`);
+            console.log(`Is External: ${isExternal}`);
+            console.log(`Labels: ${labels.join(', ')}`);
+            
+            core.setOutput('pr-number', prNumber);
+            core.setOutput('head-sha', headSha);
+            core.setOutput('head-ref', headRef);
+            core.setOutput('head-repo', headRepoFullName);
+            
+            if (isExternal) {
+              core.setOutput('external', 'true');
+              console.log(`🔍 External PR detected from: ${headRepoFullName}`);
+              
+              // Check if PR has approval label
+              const hasApprovalLabel = labels.includes('approved-for-testing');
+              
+              if (hasApprovalLabel) {
+                core.setOutput('approved', 'true');
+                console.log('✅ PR approved for testing (has "approved-for-testing" label)');
+              } else {
+                core.setOutput('approved', 'false');
+                console.log('⚠️ External PR requires manual approval');
+                console.log('Maintainer: Add "approved-for-testing" label or comment "/approve" to run tests with secrets');
+              }
+            } else {
+              core.setOutput('external', 'false');
+              core.setOutput('approved', 'true');
+              console.log('✅ Internal PR - automatically approved');
+            }
+
+      - name: Comment on PR if approval needed
+        if: steps.check.outputs.external == 'true' && steps.check.outputs.approved == 'false' && github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = '## 🛡️ External PR Security Check - Approval Required\n\n' +
+              '> **This PR is from an external contributor and requires maintainer approval to run tests with secrets.**\n\n' +
+              '### 👥 For Maintainers - Action Required\n\n' +
+              '**🔍 Before approving:**\n' +
+              '1. Review all code changes carefully\n' +
+              '2. Check that no malicious code is present\n' +
+              '3. Verify no secrets would be exposed\n' +
+              '4. Confirm the contributor is trustworthy\n\n' +
+              '**✅ To approve (choose one method):**\n\n' +
+              '**🎯 Quick approval via comment (recommended):**\n' +
+              '```\n' +
+              '/approve\n' +
+              '```\n\n' +
+              '**📝 Alternative comment formats:**\n' +
+              '- `/approve-testing`\n' +
+              '- `approved for testing`\n' +
+              '- `approve for testing`\n\n' +
+              '**🏷️ Manual approval:**\n' +
+              '- Add the `approved-for-testing` label\n\n' +
+              '---\n\n' +
+              '### 🧪 Test Status\n\n' +
+              '**✅ Running without approval:**\n' +
+              '- Unit tests (no secrets)\n' +
+              '- Linting and code quality\n' +
+              '- Docker build validation\n' +
+              '- Performance benchmarks\n\n' +
+              '**🔒 Awaiting approval:**\n' +
+              '- Integration tests (requires NETBIRD_API_TOKEN)\n' +
+              '- Docker Compose tests (requires NETBIRD_API_TOKEN)\n' +
+              '- Helm chart tests with real API\n\n' +
+              '**🔐 Security Note:** Only maintainers with write access can approve. This protects repository secrets from malicious code.';
+            
+            await github.rest.issues.createComment({
+              issue_number: ${{ steps.check.outputs.pr-number }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      # Dispatch a workflow to run the tests for this PR - safely separating privileged context from PR code
+      - name: Trigger PR test workflow
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.check.outputs.pr-number }};
+            const isExternal = '${{ steps.check.outputs.external }}' === 'true';
+            const approved = '${{ steps.check.outputs.approved }}' === 'true';
+            const headSha = '${{ steps.check.outputs.head-sha }}';
+            const headRef = '${{ steps.check.outputs.head-ref }}';
+            const headRepo = '${{ steps.check.outputs.head-repo }}';
+            
+            // Trigger the PR tests workflow
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'pr-tests.yml', 
+              ref: 'main', // Run workflow from main branch, NOT PR branch
+              inputs: {
+                pr_number: String(prNumber),
+                head_sha: headSha,
+                head_ref: headRef, 
+                head_repo: headRepo,
+                is_external: String(isExternal),
+                is_approved: String(approved)
+              }
+            });
+
+  # Report results summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [comment-approval, security-check]
+    if: always() && needs.security-check.result != 'skipped'
+    steps:
+      - name: Generate summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const securityCheck = '${{ needs.security-check.outputs.should-run }}' === 'true';
+            const isExternal = '${{ needs.security-check.outputs.is-external }}' === 'true';
+            const prNumber = ${{ needs.security-check.outputs.pr-number }};
+            const wasCommentApproved = '${{ needs.comment-approval.outputs.approved }}' === 'true';
+            
+            let summary = '## 🧪 External PR Test Workflow Status\n\n';
+            
+            if (wasCommentApproved) {
+              summary += '### ✅ Approved via Comment\n';
+              summary += 'This PR was approved for testing via comment. Full test suite is being triggered.\n\n';
+            } else if (isExternal && !securityCheck) {
+              summary += '### ⚠️ Approval Required\n';
+              summary += 'This external PR requires approval to run tests with secrets.\n\n';
+            }
+            
+            summary += '| Test Category | Status | Details |\n';
+            summary += '|---------------|--------|----------|\n';
+            
+            if (isExternal) {
+              summary += `| Basic Tests | 🔄 Running | Unit tests, linting, Docker build |\n`;
+            }
+            
+            if (securityCheck) {
+              summary += `| Integration Tests | 🔄 Running | Tests with real NetBird API |\n`;
+              summary += `| Docker Compose | 🔄 Running | Full stack testing |\n`;
+              summary += `| Helm Chart | 🔄 Running | Kubernetes deployment testing |\n`;
+            } else if (isExternal) {
+              summary += '| Integration Tests | 🔒 Requires Approval | Add \'approved-for-testing\' label or comment \'/approve\' |\n';
+              summary += '| Docker Compose | 🔒 Requires Approval | Add \'approved-for-testing\' label or comment \'/approve\' |\n';
+              summary += '| Helm Chart | 🔒 Requires Approval | Add \'approved-for-testing\' label or comment \'/approve\' |\n';
+            }
+            
+            if (isExternal && !securityCheck && !wasCommentApproved) {
+              summary += '\n### 🔐 For Maintainers\n';
+              summary += 'To run the full test suite with secrets:\n';
+              summary += '**Option 1:** Add the `approved-for-testing` label\n';
+              summary += '**Option 2:** Comment one of these approval commands:\n';
+              summary += '- `/approve`\n';
+              summary += '- `/approve-testing`\n';
+              summary += '- `approved for testing`\n\n';
+              summary += '**Security Note:** Only approve PRs from trusted contributors after thorough code review.';
+            }
+            
+            // Add summary to job
+            core.summary.addRaw(summary);
+            await core.summary.write();
+            
+            // Comment on PR if this is the initial run (not comment-triggered)
+            if (context.eventName === 'pull_request_target' && isExternal) {
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: summary
+              });
+            } 

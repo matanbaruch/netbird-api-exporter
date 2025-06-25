@@ -7,24 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+
+- Add secure external PR testing workflow with comment-based approval system (/approve command)
+  Files modified in this change:
+- Modified: .github/workflows/coverage.yml
+- Modified: .github/workflows/test.yml
+- Modified: CHANGELOG.md
+- Modified: README.md
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- New: .github/workflows/external-pr.yml
+- New: docs/security/
+
 ## [0.1.47] - 2025-06-24
 
 ## [0.1.46] - 2025-06-24
 
-
 ### Bugfix
+
 - Fix import paths to match updated module name in go.mod
 
 ## [0.1.45] - 2025-06-24
 
 ## [0.1.44] - 2025-06-24
 
-
 ### Features
-- Add netbird_peer_connection_status_by_name metric to track individual peer connection status with peer name, ID, and connection state labels
-Files modified in this change:
-- Modified: pkg/exporters/peers.go
 
+- Add netbird_peer_connection_status_by_name metric to track individual peer connection status with peer name, ID, and connection state labels
+  Files modified in this change:
+- Modified: pkg/exporters/peers.go
 
 ## [0.1.43] - 2025-06-23
 
@@ -33,18 +44,19 @@ Files modified in this change:
 ## [0.1.41] - 2025-06-07
 
 ### Features
+
 - Add Helm chart testing with kubectl using Azure k8s-deploy action
-Files modified in this change:
+  Files modified in this change:
 - Modified: .github/workflows/test.yml
 
 ## [0.1.40] - 2025-06-05
 
 ## [0.1.39] - 2025-06-05
 
-
 ### Bugfix
-- Fix Prometheus metric naming to follow official guidelines - remove _total suffix from gauge metrics
-Files modified in this change:
+
+- Fix Prometheus metric naming to follow official guidelines - remove \_total suffix from gauge metrics
+  Files modified in this change:
 - Modified: pkg/exporters/dns.go
 - Modified: pkg/exporters/dns_test.go
 - Modified: pkg/exporters/groups.go
@@ -61,18 +73,19 @@ Files modified in this change:
 ## [0.1.37] - 2025-06-02
 
 ### Features
+
 - Enhance PR build workflow to use real NETBIRD_API_TOKEN secret for comprehensive integration testing
-Files modified in this change:
+  Files modified in this change:
 - Modified: CHANGELOG.md
 - Modified: charts/netbird-api-exporter/Chart.yaml
 - New: .github/workflows/pr-build.yml
 - Add PR build workflow for Docker images and Helm chart validation
-Files modified in this change:
+  Files modified in this change:
 - Modified: charts/netbird-api-exporter/Chart.yaml
 - New: .github/workflows/pr-build.yml
 
 - Add values.schema.json to Helm chart for configuration validation and documentation
-Files modified in this change:
+  Files modified in this change:
 - New: charts/netbird-api-exporter/values.schema.json
 
 ## [0.1.36] - 2025-06-02
@@ -80,20 +93,21 @@ Files modified in this change:
 ### Bugfix
 
 - Fix linting errors for unchecked error return values in resp.Body.Close() calls
-Files modified in this change:
+  Files modified in this change:
 - Modified: pkg/integration_test.go
 - Fix linting errors (errcheck) in test files for unchecked error return values
-Files modified in this change:
+  Files modified in this change:
 - Modified: pkg/netbird/client_integration_test.go
 - Modified: pkg/utils/config_test.go
 - Fix unit tests job running integration tests in GitHub workflow
-Files modified in this change:
+  Files modified in this change:
 - Modified: scripts/run-tests.sh
 - Fix linting issues in performance tests including errcheck, gosec, and ineffassign violations
 
 ### Features
+
 - Add comprehensive GitHub Actions test workflow with matrix testing
-Files modified in this change:
+  Files modified in this change:
 - Modified: .github/workflows/lint.yml
 - Modified: CHANGELOG.md
 - Modified: Makefile
@@ -106,7 +120,7 @@ Files modified in this change:
 - New: pkg/utils/config_test.go
 - New: scripts/run-tests.sh
 - Add comprehensive test suite including integration and performance tests
-Files modified in this change:
+  Files modified in this change:
 - Modified: CHANGELOG.md
 - Modified: Makefile
 - Modified: charts/netbird-api-exporter/Chart.yaml
@@ -117,7 +131,7 @@ Files modified in this change:
 - New: pkg/utils/config_test.go
 - New: scripts/run-tests.sh
 - Add comprehensive test suite including integration tests and performance tests
-Files modified in this change:
+  Files modified in this change:
 - Modified: Makefile
 - New: pkg/exporters/performance_test.go
 - New: pkg/integration_test.go
@@ -136,8 +150,9 @@ Files modified in this change:
 ## [0.1.31] - 2025-06-01
 
 ### Bugfix
+
 - Fix update-changelog.sh to properly update Helm chart artifacthub.io/changes with correct format and handle empty descriptions
-Files modified in this change:
+  Files modified in this change:
 - Added: .github/dependabot.yml
 - Modified: scripts/update-changelog.sh
 
@@ -145,13 +160,14 @@ Files modified in this change:
 
 ## [0.1.29] - 2025-06-01
 
-
 ### Bugfix
+
 - Fix ArtifactHub.io annotations by properly quoting strings and correcting alternative name
-Files modified in this change:
+  Files modified in this change:
 - Modified: charts/netbird-api-exporter/Chart.yaml
 
 ## [0.1.28] - 2025-06-01
+
 ### Features
 
 - Refactor GitHub issue templates with improved structure and NetBird-specific context
