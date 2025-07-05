@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Bugfix
+- Fix GitHub Actions workflow syntax errors in external PR handling
+Files modified in this change:
+- Modified: .github/workflows/external-pr.yml
+
+## [0.1.48] - 2025-07-02
+
 ### Features
 
 - Add secure external PR testing workflow with comment-based approval system (/approve command)
