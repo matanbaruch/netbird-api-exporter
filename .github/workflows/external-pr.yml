@@ -248,7 +248,7 @@ jobs:
               labels = context.payload.pull_request.labels.map(label => label.name);
               console.log('Triggered by pull_request_target event');
             } else if (context.eventName === 'issue_comment') {
-              prNumber = ${{ needs.comment-approval.outputs.pr-number }};
+              prNumber = ${{ needs.comment-approval.outputs.pr-number || 'null' }};
               
               // Get PR details from API
               const { data: pr } = await github.rest.pulls.get({
@@ -339,7 +339,7 @@ jobs:
               '**🔐 Security Note:** Only maintainers with write access can approve. This protects repository secrets from malicious code.';
             
             await github.rest.issues.createComment({
-              issue_number: ${{ steps.check.outputs.pr-number }},
+              issue_number: ${{ steps.check.outputs.pr-number || 'null' }},
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: comment
@@ -351,12 +351,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = ${{ steps.check.outputs.pr-number }};
-            const isExternal = '${{ steps.check.outputs.external }}' === 'true';
-            const approved = '${{ steps.check.outputs.approved }}' === 'true';
-            const headSha = '${{ steps.check.outputs.head-sha }}';
-            const headRef = '${{ steps.check.outputs.head-ref }}';
-            const headRepo = '${{ steps.check.outputs.head-repo }}';
+            const prNumber = ${{ steps.check.outputs.pr-number || 'null' }};
+            const isExternal = '${{ steps.check.outputs.external || '' }}' === 'true';
+            const approved = '${{ steps.check.outputs.approved || '' }}' === 'true';
+            const headSha = '${{ steps.check.outputs.head-sha || '' }}';
+            const headRef = '${{ steps.check.outputs.head-ref || '' }}';
+            const headRepo = '${{ steps.check.outputs.head-repo || '' }}';
             
             // Trigger the PR tests workflow
             await github.rest.actions.createWorkflowDispatch({
@@ -385,10 +385,10 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const securityCheck = '${{ needs.security-check.outputs.should-run }}' === 'true';
-            const isExternal = '${{ needs.security-check.outputs.is-external }}' === 'true';
-            const prNumber = ${{ needs.security-check.outputs.pr-number }};
-            const wasCommentApproved = '${{ needs.comment-approval.outputs.approved }}' === 'true';
+            const securityCheck = '${{ needs.security-check.outputs.should-run || '' }}' === 'true';
+            const isExternal = '${{ needs.security-check.outputs.is-external || '' }}' === 'true';
+            const prNumber = ${{ needs.security-check.outputs.pr-number || 'null' }};
+            const wasCommentApproved = '${{ needs.comment-approval.outputs.approved || '' }}' === 'true';
             
             let summary = '## 🧪 External PR Test Workflow Status\n\n';
             
