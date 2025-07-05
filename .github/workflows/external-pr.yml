@@ -9,6 +9,7 @@ permissions:
   pull-requests: write
   checks: write
   statuses: write
+  actions: write
 
 # Step 1: Workflow to handle approval process (uses pull_request_target but doesn't checkout PR code)
 on:
