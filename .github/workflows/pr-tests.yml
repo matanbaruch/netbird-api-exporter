@@ -163,7 +163,6 @@ jobs:
               body: commentBody
             });
 
-  # This job stores the PR information for potential future workflow_run jobs
   save-pr-info:
     name: Save PR Info
     runs-on: ubuntu-latest
