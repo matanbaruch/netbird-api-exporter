@@ -3,7 +3,7 @@ module github.com/matanbaruch/netbird-api-exporter
 go 1.24
 
 require (
-	github.com/netbirdio/netbird v0.49.0
+	github.com/netbirdio/netbird v0.50.3
 	github.com/prometheus/client_golang v1.22.0
 	github.com/sirupsen/logrus v1.9.3
 )
@@ -19,6 +19,6 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/grpc v1.64.1 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 )
