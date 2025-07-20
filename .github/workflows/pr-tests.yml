@@ -57,7 +57,7 @@ jobs:
         run: go mod download
 
       - name: Run linting
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           args: --timeout=5m
@@ -163,7 +163,6 @@ jobs:
               body: commentBody
             });
 
-  # This job stores the PR information for potential future workflow_run jobs
   save-pr-info:
     name: Save PR Info
     runs-on: ubuntu-latest
