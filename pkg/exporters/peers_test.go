@@ -113,6 +113,7 @@ func TestPeersExporter_Collect_Success(t *testing.T) {
 				ApprovalRequired: false,
 				CountryCode:      "US",
 				CityName:         "New York",
+				UserId:           "user1",
 			},
 			{
 				Id:               "peer2",
@@ -128,6 +129,7 @@ func TestPeersExporter_Collect_Success(t *testing.T) {
 				ApprovalRequired: true,
 				CountryCode:      "CA",
 				CityName:         "Toronto",
+				UserId:           "user2",
 			},
 		}
 
@@ -323,6 +325,7 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 			ApprovalRequired: false,
 			CountryCode:      "US",
 			CityName:         "New York",
+			UserId:           "user1",
 		},
 		{
 			Id:               "peer2",
@@ -335,6 +338,7 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 			ApprovalRequired: true,
 			CountryCode:      "US",
 			CityName:         "Los Angeles",
+			UserId:           "user2",
 		},
 	}
 
@@ -381,6 +385,7 @@ func TestPeersExporter_MetricLabels(t *testing.T) {
 			CountryCode: "US",
 			CityName:    "New York",
 			Groups:      []api.GroupMinimum{{Id: "group1", Name: "test-group"}},
+			UserId:      "user1",
 		},
 	}
 
@@ -424,11 +429,13 @@ func TestPeersExporter_ConnectionStatusByName(t *testing.T) {
 			Id:        "peer1",
 			Name:      "connected-peer",
 			Connected: true,
+			UserId:    "user1",
 		},
 		{
 			Id:        "peer2",
 			Name:      "disconnected-peer",
 			Connected: false,
+			UserId:    "user2",
 		},
 	}
 
