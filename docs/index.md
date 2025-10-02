@@ -125,3 +125,4 @@ We welcome contributions! See our [Contributing Guide](contributing) for details
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/matanbaruch/netbird-api-exporter/blob/main/LICENSE) file for details. 
+
