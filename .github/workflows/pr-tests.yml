@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results
           path: test-results/
@@ -182,7 +182,7 @@ jobs:
           echo "${{ github.event.inputs.is_approved }}" > pr-info/IS_APPROVED
 
       - name: Upload PR info
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pr-info
           path: pr-info/

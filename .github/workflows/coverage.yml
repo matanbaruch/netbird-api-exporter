@@ -100,7 +100,7 @@ jobs:
         curl -s "https://img.shields.io/badge/coverage-$COVERAGE%25-$COLOR" > badges/coverage.svg
 
     - name: Upload coverage reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage-reports
         path: |
@@ -204,7 +204,7 @@ jobs:
 
     - name: Upload integration coverage
       if: env.NETBIRD_API_TOKEN != ''
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: integration-coverage
         path: integration-coverage.out
@@ -239,7 +239,7 @@ jobs:
         GO111MODULE=on go test -bench=. -benchmem -run=^$ ./... > benchmarks.txt
 
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: benchmark-results
         path: benchmarks.txt
