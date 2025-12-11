@@ -27,7 +27,7 @@ jobs:
     steps:
       # First download the artifacts from the triggering workflow
       - name: Download PR info
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -290,7 +290,7 @@ jobs:
       # Comment results to PR
       - name: Update PR with privileged test results
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
