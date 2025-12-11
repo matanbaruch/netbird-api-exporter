@@ -42,7 +42,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout PR code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.event.inputs.head_repo }}
           ref: ${{ github.event.inputs.head_sha }}
