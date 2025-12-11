@@ -407,7 +407,7 @@ jobs:
           helmChart: "./charts/netbird-api-exporter/"
           overrideFiles: "test-values.yaml"
           releaseName: "netbird-test"
-          helm-version: "latest"
+          helm-version: "v3.18.3"
         id: bake
 
       - name: Deploy to kind cluster
