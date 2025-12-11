@@ -1,0 +1,49 @@
+# mise configuration for NetBird API Exporter
+# https://mise.jdx.dev/
+
+[tools]
+# Go version matching go.mod
+go = "1.24"
+
+# Linting and formatting tools
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "1.64"
+
+# GitHub CLI for releases and workflows
+"github-cli" = "latest"
+
+[env]
+# Default environment variables for development
+NETBIRD_API_URL = "https://api.netbird.io"
+LISTEN_ADDRESS = ":8080"
+METRICS_PATH = "/metrics"
+LOG_LEVEL = "debug"
+
+[tasks.build]
+description = "Build the application"
+run = "go build -o netbird-api-exporter"
+
+[tasks.test]
+description = "Run tests"
+run = "go test -v ./..."
+
+[tasks.test-coverage]
+description = "Run tests with coverage"
+run = "go test -cover -coverprofile=coverage/coverage.txt ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run --fast"
+
+[tasks.fmt]
+description = "Format code with goimports"
+run = "goimports -w ."
+
+[tasks.dev]
+description = "Run the application in development mode"
+run = "go run main.go"
+
+[tasks.check]
+description = "Run all quality checks (fmt, lint, test)"
+depends = ["fmt", "lint", "test"]
+
