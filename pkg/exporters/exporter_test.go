@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
