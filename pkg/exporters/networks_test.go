@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
-	"github.com/netbirdio/netbird/management/server/http/api"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
