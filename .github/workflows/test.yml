@@ -396,9 +396,9 @@ jobs:
             apiUrl: "https://api.netbird.io"
           EOF
 
-      - uses: azure/setup-helm@v4.3.0
+      - uses: azure/setup-helm@v4
         with:
-           version: '3'
+           version: 'v3.18.3'
 
       - name: Bake helm chart
         uses: azure/k8s-bake@v3
