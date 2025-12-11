@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+- Add user_id label to peer metrics
+Files modified in this change:
+- Modified: README.md
+- Modified: pkg/exporters/peers.go
+- Modified: pkg/exporters/peers_test.go
+
 ## [0.1.59] - 2025-12-01
 
 ## [0.1.58] - 2025-11-03
