@@ -215,7 +215,7 @@ jobs:
 
       # Checkout the code at the PR's HEAD
       - name: Checkout PR code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.HEAD_REPO }}
           ref: ${{ env.HEAD_SHA }}
