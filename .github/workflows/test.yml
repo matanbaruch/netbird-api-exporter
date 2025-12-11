@@ -29,7 +29,7 @@ jobs:
       coverage-percentage: ${{ steps.coverage.outputs.percentage }}
       coverage-badge-color: ${{ steps.coverage.outputs.badge-color }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Need full history for coverage comparison
 
@@ -84,7 +84,7 @@ jobs:
     needs: unit-tests
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -285,7 +285,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -308,7 +308,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -329,7 +329,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -350,7 +350,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Start services
         env:
@@ -369,7 +369,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
