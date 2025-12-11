@@ -257,13 +257,13 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 			connectedStr = "true"
 			connectionValue = 1.0
 		}
-		
+
 		// Handle peer_user field - use user_id if available, otherwise "unknown"
 		peerUser := peer.UserId
 		if peerUser == "" {
 			peerUser = "unknown"
 		}
-		
+
 		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, peerUser, connectedStr).Set(connectionValue)
 	}
 
