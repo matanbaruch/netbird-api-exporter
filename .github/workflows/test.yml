@@ -396,6 +396,10 @@ jobs:
             apiUrl: "https://api.netbird.io"
           EOF
 
+      - uses: azure/setup-helm@v4
+        with:
+           version: 'v3.18.3'
+
       - name: Bake helm chart
         uses: azure/k8s-bake@v3
         with:
@@ -403,7 +407,7 @@ jobs:
           helmChart: "./charts/netbird-api-exporter/"
           overrideFiles: "test-values.yaml"
           releaseName: "netbird-test"
-          helm-version: "latest"
+          # helm-version: "v3.18.3"
         id: bake
 
       - name: Deploy to kind cluster
