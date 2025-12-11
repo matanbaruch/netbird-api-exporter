@@ -1,40 +1,37 @@
----
-description: 
-globs: 
-alwaysApply: true
----
 # NetBird API Exporter - Development Rules
+
+This document provides AI agent guidelines for working with this codebase. It is consumed by AI assistants like Claude, Cursor, Copilot, and others.
 
 ## Project Overview
 
-NetBird API Exporter is a Prometheus exporter that collects metrics from the NetBird API, providing insights into peers, groups, users, DNS settings, and networks. The main entry point is [main.go](mdc:main.go) which sets up the HTTP server and registers the exporters.
+NetBird API Exporter is a Prometheus exporter that collects metrics from the NetBird API, providing insights into peers, groups, users, DNS settings, and networks. The main entry point is [main.go](main.go) which sets up the HTTP server and registers the exporters.
 
 ## Project Structure
 
 ### Core Components
-- **Main Application**: [main.go](mdc:main.go) - HTTP server setup, middleware, and routing
-- **Exporters Package**: [pkg/exporters/](mdc:pkg/exporters) - Prometheus exporters for different NetBird resources
-- **NetBird Client**: [pkg/netbird/](mdc:pkg/netbird) - API client for NetBird services
-- **Utilities**: [pkg/utils/](mdc:pkg/utils) - Common utilities and helpers
-- **Configuration**: [env.example](mdc:env.example) - Environment variable examples
+- **Main Application**: [main.go](main.go) - HTTP server setup, middleware, and routing
+- **Exporters Package**: [pkg/exporters/](pkg/exporters) - Prometheus exporters for different NetBird resources
+- **NetBird Client**: [pkg/netbird/](pkg/netbird) - API client for NetBird services
+- **Utilities**: [pkg/utils/](pkg/utils) - Common utilities and helpers
+- **Configuration**: [env.example](env.example) - Environment variable examples
 
 ### Documentation & Configuration
-- **Main Documentation**: [README.md](mdc:README.md) - Project overview and usage
-- **Architecture**: [ARCHITECTURE.md](mdc:ARCHITECTURE.md) - Technical architecture details
-- **Contributing**: [CONTRIBUTING.md](mdc:CONTRIBUTING.md) - Development guidelines
-- **Changelog**: [CHANGELOG.md](mdc:CHANGELOG.md) - Release history and changes
+- **Main Documentation**: [README.md](README.md) - Project overview and usage
+- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture details
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) - Development guidelines
+- **Changelog**: [CHANGELOG.md](CHANGELOG.md) - Release history and changes
 
 ### Deployment & Operations
-- **Docker**: [Dockerfile](mdc:Dockerfile) and [docker-compose.yml](mdc:docker-compose.yml)
-- **Helm Charts**: [charts/netbird-api-exporter/](mdc:charts/netbird-api-exporter)
-- **Systemd Service**: [netbird-exporter.service](mdc:netbird-exporter.service)
-- **Prometheus Config**: [prometheus.yml.example](mdc:prometheus.yml.example)
+- **Docker**: [Dockerfile](Dockerfile) and [docker-compose.yml](docker-compose.yml)
+- **Helm Charts**: [charts/netbird-api-exporter/](charts/netbird-api-exporter)
+- **Systemd Service**: [netbird-exporter.service](netbird-exporter.service)
+- **Prometheus Config**: [prometheus.yml.example](prometheus.yml.example)
 
 ## Changelog Management (CRITICAL)
 
 ### Always Update Changelog
 
-**Every meaningful change MUST include a changelog entry.** Use the changelog script located at [scripts/update-changelog.sh](mdc:scripts/update-changelog.sh):
+**Every meaningful change MUST include a changelog entry.** Use the changelog script located at [scripts/update-changelog.sh](scripts/update-changelog.sh):
 
 ```bash
 ./scripts/update-changelog.sh [type] [description]
@@ -82,7 +79,7 @@ NetBird API Exporter is a Prometheus exporter that collects metrics from the Net
 
 ### Logging Standards
 - Use logrus for structured logging
-- Include relevant fields in log entries (see [main.go](mdc:main.go) for examples)
+- Include relevant fields in log entries (see [main.go](main.go) for examples)
 - Use appropriate log levels: Debug, Info, Warn, Error, Fatal
 - Debug logging should be comprehensive for HTTP requests/responses
 
@@ -94,7 +91,7 @@ NetBird API Exporter is a Prometheus exporter that collects metrics from the Net
 
 ## Environment Variables
 
-Key configuration through environment variables (see [env.example](mdc:env.example)):
+Key configuration through environment variables (see [env.example](env.example)):
 - `NETBIRD_API_URL`: NetBird API endpoint (default: https://api.netbird.io)
 - `NETBIRD_API_TOKEN`: Required API token for authentication
 - `LISTEN_ADDRESS`: HTTP server listen address (default: :8080)
@@ -124,9 +121,9 @@ Types: feat, fix, docs, style, refactor, test, chore
 
 ## Development Workflow
 
-1. **Setup**: Use [docker-compose.yml](mdc:docker-compose.yml) for local development
+1. **Setup**: Use [docker-compose.yml](docker-compose.yml) for local development
 2. **Code Changes**: Follow the patterns in existing exporters
-3. **Changelog**: Always update [CHANGELOG.md](mdc:CHANGELOG.md) using the script
+3. **Changelog**: Always update [CHANGELOG.md](CHANGELOG.md) using the script
 4. **Testing**: Run tests and verify functionality
 5. **Documentation**: Update relevant docs if needed
 6. **Commit**: Include both code and changelog changes
@@ -134,8 +131,8 @@ Types: feat, fix, docs, style, refactor, test, chore
 ## API Integration
 
 When working with NetBird API:
-- Use the client patterns in [pkg/netbird/](mdc:pkg/netbird)
-- Follow the exporter patterns in [pkg/exporters/](mdc:pkg/exporters)
+- Use the client patterns in [pkg/netbird/](pkg/netbird)
+- Follow the exporter patterns in [pkg/exporters/](pkg/exporters)
 - Implement proper rate limiting and error handling
 - Add debug logging for API calls
 - Handle authentication and API versioning correctly
@@ -154,5 +151,6 @@ When adding new metrics:
 - Never log sensitive information (API tokens, credentials)
 - Validate all inputs
 - Use secure defaults
-- Follow the security patterns in [Dockerfile](mdc:Dockerfile)
+- Follow the security patterns in [Dockerfile](Dockerfile)
 - Run as non-root user (nobody) in containers
+
