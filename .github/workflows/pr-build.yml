@@ -74,7 +74,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Upload Docker image artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: docker-image-${{ github.event.pull_request.number }}
         path: /tmp/image.tar
@@ -235,7 +235,7 @@ jobs:
         helm package charts/netbird-api-exporter --destination /tmp/
 
     - name: Upload Helm chart artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: helm-chart-${{ github.event.pull_request.number }}
         path: /tmp/*.tgz
