@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Add netbird_peer_info metric with country_code, city_name, and os labels for joining with latency metrics
+Files modified in this change:
+- Modified: pkg/exporters/peers.go
+
 ## [0.1.72] - 2026-01-08
 
 ## [0.1.71] - 2026-01-08

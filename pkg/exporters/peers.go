@@ -28,6 +28,7 @@ type PeersExporter struct {
 	peersApprovalRequired      *prometheus.GaugeVec
 	accessiblePeersCount       *prometheus.GaugeVec
 	peerConnectionStatusByName *prometheus.GaugeVec
+	peerInfo                   *prometheus.GaugeVec
 }
 
 // NewPeersExporter creates a new peers exporter
@@ -122,6 +123,14 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 			},
 			[]string{"peer_name", "peer_id", "connected"},
 		),
+
+		peerInfo: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "netbird_peer_info",
+				Help: "Information about each peer including country. Use for joining with other metrics. Value is always 1.",
+			},
+			[]string{"peer_id", "peer_name", "hostname", "country_code", "city_name", "os"},
+		),
 	}
 }
 
@@ -138,6 +147,7 @@ func (e *PeersExporter) Describe(ch chan<- *prometheus.Desc) {
 	e.peersApprovalRequired.Describe(ch)
 	e.accessiblePeersCount.Describe(ch)
 	e.peerConnectionStatusByName.Describe(ch)
+	e.peerInfo.Describe(ch)
 }
 
 // Collect implements prometheus.Collector
@@ -154,6 +164,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersApprovalRequired.Reset()
 	e.accessiblePeersCount.Reset()
 	e.peerConnectionStatusByName.Reset()
+	e.peerInfo.Reset()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -178,6 +189,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersApprovalRequired.Collect(ch)
 	e.accessiblePeersCount.Collect(ch)
 	e.peerConnectionStatusByName.Collect(ch)
+	e.peerInfo.Collect(ch)
 }
 
 // updateMetrics updates Prometheus metrics based on peer data
@@ -258,6 +270,22 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 			connectionValue = 1.0
 		}
 		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, connectedStr).Set(connectionValue)
+
+		// Peer info metric for joining with latency data
+		// This allows correlating country/city with latency metrics from subnet routers
+		countryCode := peer.CountryCode
+		if countryCode == "" {
+			countryCode = "unknown"
+		}
+		cityName := peer.CityName
+		if cityName == "" {
+			cityName = "unknown"
+		}
+		peerOS := peer.Os
+		if peerOS == "" {
+			peerOS = "unknown"
+		}
+		e.peerInfo.WithLabelValues(peer.Id, peer.Name, peer.Hostname, countryCode, cityName, peerOS).Set(1)
 	}
 
 	// Set metrics
