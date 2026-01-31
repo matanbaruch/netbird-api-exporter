@@ -5,7 +5,7 @@ go 1.24.10
 require (
 	github.com/netbirdio/netbird v0.60.7
 	github.com/prometheus/client_golang v1.23.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 )
 
 require (
