@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ### Features
+- Add dns_label to netbird_peer_info metric for easier joins with latency data
+Files modified in this change:
+- Modified: pkg/exporters/peers.go
 - Add netbird_peer_info metric with country_code, city_name, and os labels for joining with latency metrics
 Files modified in this change:
 - Modified: pkg/exporters/peers.go

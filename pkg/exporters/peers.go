@@ -127,9 +127,9 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 		peerInfo: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "netbird_peer_info",
-				Help: "Information about each peer including country. Use for joining with other metrics. Value is always 1.",
+				Help: "Information about each peer including country and DNS label. Use for joining with other metrics. Value is always 1.",
 			},
-			[]string{"peer_id", "peer_name", "hostname", "country_code", "city_name", "os"},
+			[]string{"peer_id", "peer_name", "hostname", "dns_label", "country_code", "city_name", "os"},
 		),
 	}
 }
@@ -273,6 +273,7 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 
 		// Peer info metric for joining with latency data
 		// This allows correlating country/city with latency metrics from subnet routers
+		// dns_label is used for joining with netbird_connection_latency remote label
 		countryCode := peer.CountryCode
 		if countryCode == "" {
 			countryCode = "unknown"
@@ -285,7 +286,11 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 		if peerOS == "" {
 			peerOS = "unknown"
 		}
-		e.peerInfo.WithLabelValues(peer.Id, peer.Name, strings.ToLower(peer.Hostname), countryCode, cityName, peerOS).Set(1)
+		dnsLabel := peer.DnsLabel
+		if dnsLabel == "" {
+			dnsLabel = "unknown"
+		}
+		e.peerInfo.WithLabelValues(peer.Id, peer.Name, peer.Hostname, dnsLabel, countryCode, cityName, peerOS).Set(1)
 	}
 
 	// Set metrics

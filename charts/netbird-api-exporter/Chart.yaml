@@ -58,6 +58,8 @@ annotations:
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
     - kind: added
+      description: "Add dns_label to netbird_peer_info metric for easier joins with latency data"
+    - kind: added
       description: "Add netbird_peer_info metric with country_code, city_name, and os labels for joining with latency metrics"
     - kind: fixed
       description: "Fix GitHub Actions workflow syntax errors in external PR handling"
