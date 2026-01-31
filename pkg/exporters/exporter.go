@@ -6,7 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
 )
 
 // NetBirdExporter represents the main Prometheus exporter for NetBird APIs

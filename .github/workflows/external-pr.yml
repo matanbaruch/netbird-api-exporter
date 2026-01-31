@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Check if comment approves PR for testing
         id: check-approval
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const comment = context.payload.comment.body.toLowerCase().trim();
@@ -235,7 +235,7 @@ jobs:
     steps:
       - name: Check if PR should run tests
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             let prNumber, headRepoFullName, labels, headSha, headRef;
@@ -304,7 +304,7 @@ jobs:
 
       - name: Comment on PR if approval needed
         if: steps.check.outputs.external == 'true' && steps.check.outputs.approved == 'false' && github.event_name == 'pull_request_target'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const comment = '## 🛡️ External PR Security Check - Approval Required\n\n' +
@@ -349,7 +349,7 @@ jobs:
       # Dispatch a workflow to run the tests for this PR - safely separating privileged context from PR code
       - name: Trigger PR test workflow
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = ${{ steps.check.outputs.pr-number || 'null' }};
@@ -383,7 +383,7 @@ jobs:
     if: always() && needs.security-check.result != 'skipped'
     steps:
       - name: Generate summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const securityCheck = '${{ needs.security-check.outputs.should-run || '' }}' === 'true';
