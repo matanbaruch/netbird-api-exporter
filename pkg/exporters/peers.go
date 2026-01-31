@@ -285,7 +285,7 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 		if peerOS == "" {
 			peerOS = "unknown"
 		}
-		e.peerInfo.WithLabelValues(peer.Id, peer.Name, peer.Hostname, countryCode, cityName, peerOS).Set(1)
+		e.peerInfo.WithLabelValues(peer.Id, peer.Name, strings.ToLower(peer.Hostname), countryCode, cityName, peerOS).Set(1)
 	}
 
 	// Set metrics
