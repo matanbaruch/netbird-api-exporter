@@ -22,4 +22,4 @@ server:
 
   store:
     engine: "sqlite"
-    encryptionKey: "test-encryption-key-for-ci-only-32ch"
+    encryptionKey: "3lpA+yQo4IpjngQqiKPnhNmKgW3jk10qySmqlBKDDow="

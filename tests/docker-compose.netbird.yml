@@ -10,11 +10,7 @@ services:
       - ./config.yaml:/etc/netbird/config.yaml:ro
       - netbird-data:/var/lib/netbird
     command: ["--config", "/etc/netbird/config.yaml"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/oauth2/.well-known/openid-configuration"]
-      interval: 3s
-      timeout: 2s
-      retries: 30
+    # Healthcheck is handled by scripts/setup-test-netbird.sh polling from the host
 
 volumes:
   netbird-data:

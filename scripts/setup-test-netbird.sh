@@ -27,11 +27,11 @@ print_status "Starting self-hosted NetBird server for testing..."
 # Start the container
 docker compose -f "$COMPOSE_FILE" up -d
 
-# Wait for the server to be healthy
+# Wait for the server to be healthy (use curl from host since wget may not be in container)
 print_status "Waiting for NetBird server to be ready (max ${MAX_WAIT}s)..."
 elapsed=0
 while [ $elapsed -lt $MAX_WAIT ]; do
-    if docker exec "$CONTAINER_NAME" wget -q --spider http://localhost:80/oauth2/.well-known/openid-configuration 2>/dev/null; then
+    if curl -sf http://localhost:8081/oauth2/.well-known/openid-configuration >/dev/null 2>&1; then
         print_success "NetBird server is ready! (${elapsed}s)"
         break
     fi
