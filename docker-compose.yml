@@ -6,7 +6,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - NETBIRD_API_URL=https://api.netbird.io
+      - NETBIRD_API_URL=${NETBIRD_API_URL:-https://api.netbird.io}
       - NETBIRD_API_TOKEN=${NETBIRD_API_TOKEN}
       - LISTEN_ADDRESS=:8080
       - METRICS_PATH=/metrics
