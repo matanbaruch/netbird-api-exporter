@@ -33,9 +33,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -61,18 +58,6 @@ jobs:
         cache-to: type=gha,mode=max
         outputs: type=docker,dest=/tmp/image.tar
     
-    - name: Build multi-platform validation
-      id: build-multi-platform
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: false
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
     - name: Upload Docker image artifact
       uses: actions/upload-artifact@v6
       with:
@@ -98,7 +83,51 @@ jobs:
           $IMAGE_TAG || echo "Expected to fail without API token"
         
         echo "✅ Single-platform image (amd64) tested successfully"
-        echo "✅ Multi-platform build (amd64, arm64) validated during build step"
+
+  build-docker-image-arm64:
+    name: Build Docker Image (ARM64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=pr,prefix=pr-
+          type=sha,prefix=sha-
+
+    - name: Build Docker image (ARM64)
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: false
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        outputs: type=docker,dest=/tmp/image-arm64.tar
+
+    - name: Test Docker image (ARM64)
+      run: |
+        docker load -i /tmp/image-arm64.tar
+
+        # Get the first tag from the metadata output
+        IMAGE_TAG=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)
+        echo "Testing image: $IMAGE_TAG (linux/arm64)"
+
+        # Test basic functionality
+        docker run --rm $IMAGE_TAG --help
+
+        echo "✅ ARM64 image built and tested successfully"
 
   validate-helm-chart:
     name: Validate Helm Chart
@@ -385,7 +414,7 @@ jobs:
   pr-summary:
     name: PR Build Summary
     runs-on: ubuntu-latest
-    needs: [build-docker-image, validate-helm-chart, security-scan, integration-test-with-image]
+    needs: [build-docker-image, build-docker-image-arm64, validate-helm-chart, security-scan, integration-test-with-image]
     if: always()
     steps:
     - name: Generate PR summary
@@ -394,17 +423,18 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Docker Image Build | ${{ needs.build-docker-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Multi-arch build validation (amd64, arm64) + testable amd64 image |" >> $GITHUB_STEP_SUMMARY
+        echo "| Docker Image Build (amd64) | ${{ needs.build-docker-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Native amd64 build + testable image artifact |" >> $GITHUB_STEP_SUMMARY
+        echo "| Docker Image Build (arm64) | ${{ needs.build-docker-image-arm64.result == 'success' && '✅ Success' || '❌ Failed' }} | Native arm64 build validation |" >> $GITHUB_STEP_SUMMARY
         echo "| Helm Chart Validation | ${{ needs.validate-helm-chart.result == 'success' && '✅ Success' || '❌ Failed' }} | Schema validation, linting, templating, and packaging tests |" >> $GITHUB_STEP_SUMMARY
         echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Success' || needs.security-scan.result == 'failure' && '⚠️ Issues Found' || '❌ Failed' }} | Trivy vulnerability scan |" >> $GITHUB_STEP_SUMMARY
         echo "| Integration Test | ${{ needs.integration-test-with-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Full API integration testing with self-hosted NetBird |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        if [[ "${{ needs.build-docker-image.result }}" == "success" && "${{ needs.validate-helm-chart.result }}" == "success" ]]; then
+        if [[ "${{ needs.build-docker-image.result }}" == "success" && "${{ needs.build-docker-image-arm64.result }}" == "success" && "${{ needs.validate-helm-chart.result }}" == "success" ]]; then
           echo "🎉 **All builds successful!** This PR is ready for review." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker image: Built and tested (multi-arch)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker image: Built and tested natively on amd64 + arm64" >> $GITHUB_STEP_SUMMARY
           echo "- Helm chart: Schema validated, linted, and packaged" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ **Full testing**: Used self-hosted NetBird for integration validation" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts are available for download for 7 days" >> $GITHUB_STEP_SUMMARY

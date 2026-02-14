@@ -57,6 +57,8 @@ annotations:
     - title: NetBird API Exporter Dashboard
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
+    - kind: added
+      description: "Use native ARM64 GitHub runner for PR Docker builds instead of QEMU emulation"
     - kind: fixed
       description: "Skip PR comment and coverage gate steps for fork PRs to avoid 403 permission errors"
     - kind: fixed

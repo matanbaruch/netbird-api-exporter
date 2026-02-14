@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Use native ARM64 GitHub runner for PR Docker builds instead of QEMU emulation
+Files modified in this change:
+- Modified: .github/workflows/pr-build.yml
+
 ## [0.1.75] - 2026-02-14
 
 
