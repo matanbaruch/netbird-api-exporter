@@ -120,7 +120,7 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 				Name: "netbird_peer_connection_status_by_name",
 				Help: "Connection status of each peer by name (1 for connected, 0 for disconnected)",
 			},
-			[]string{"peer_name", "peer_id", "connected", "user_id"},
+			[]string{"peer_name", "peer_id", "user_id", "connected"},
 		),
 	}
 }
@@ -257,7 +257,13 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 			connectedStr = "true"
 			connectionValue = 1.0
 		}
-		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, connectedStr, peer.UserId).Set(connectionValue)
+		// Handle user_id field - use user_id if available, otherwise "unknown"
+		userId := peer.UserId
+		if userId == "" {
+			userId = "unknown"
+		}
+
+		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, userId, connectedStr).Set(connectionValue)
 	}
 
 	// Set metrics
