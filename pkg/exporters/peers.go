@@ -56,7 +56,7 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 				Name: "netbird_peer_last_seen_timestamp",
 				Help: "Last seen timestamp of NetBird peers",
 			},
-			[]string{"peer_id", "peer_name", "hostname"},
+			[]string{"peer_id", "peer_name", "hostname", "user_id"},
 		),
 
 		peersByOS: prometheus.NewGaugeVec(
@@ -120,7 +120,7 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 				Name: "netbird_peer_connection_status_by_name",
 				Help: "Connection status of each peer by name (1 for connected, 0 for disconnected)",
 			},
-			[]string{"peer_name", "peer_id", "peer_user", "connected"},
+			[]string{"peer_name", "peer_id", "user_id", "connected"},
 		),
 	}
 }
@@ -207,7 +207,7 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 		}
 
 		// Last seen timestamp
-		e.peersLastSeen.WithLabelValues(peer.Id, peer.Name, peer.Hostname).Set(float64(peer.LastSeen.Unix()))
+		e.peersLastSeen.WithLabelValues(peer.Id, peer.Name, peer.Hostname, peer.UserId).Set(float64(peer.LastSeen.Unix()))
 
 		// OS distribution
 		osKey := peer.Os
@@ -257,14 +257,13 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 			connectedStr = "true"
 			connectionValue = 1.0
 		}
-
-		// Handle peer_user field - use user_id if available, otherwise "unknown"
-		peerUser := peer.UserId
-		if peerUser == "" {
-			peerUser = "unknown"
+		// Handle user_id field - use user_id if available, otherwise "unknown"
+		userId := peer.UserId
+		if userId == "" {
+			userId = "unknown"
 		}
 
-		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, peerUser, connectedStr).Set(connectionValue)
+		e.peerConnectionStatusByName.WithLabelValues(peer.Name, peer.Id, userId, connectedStr).Set(connectionValue)
 	}
 
 	// Set metrics
