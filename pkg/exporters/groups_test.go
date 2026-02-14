@@ -295,7 +295,7 @@ func TestGroupsExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.groupsTotal, exporter.groupPeersCount, exporter.groupResourcesCount, exporter.groupInfo, exporter.groupResourcesByType)
 
 	families, err := registry.Gather()
 	if err != nil {
@@ -333,7 +333,7 @@ func TestGroupsExporter_MetricsReset(t *testing.T) {
 
 	// Collect and verify metrics are reset
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.groupsTotal, exporter.groupPeersCount, exporter.groupResourcesCount, exporter.groupInfo, exporter.groupResourcesByType)
 
 	families, err := registry.Gather()
 	if err != nil {
