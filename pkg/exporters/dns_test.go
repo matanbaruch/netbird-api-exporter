@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
-	"github.com/netbirdio/netbird/management/server/http/api"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -295,7 +295,7 @@ func TestDNSExporter_UpdateNameserverMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.nameserverGroupsTotal, exporter.nameserverGroupsEnabled, exporter.nameserverGroupsPrimary, exporter.nameserverGroupDomains, exporter.nameserversTotal, exporter.nameserversByType, exporter.nameserversByPort, exporter.dnsManagementDisabled)
 
 	families, err := registry.Gather()
 	if err != nil {

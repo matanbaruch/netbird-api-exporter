@@ -1,0 +1,16 @@
+services:
+  netbird-server:
+    image: netbirdio/netbird-server:latest
+    container_name: netbird-server
+    restart: "no"
+    ports:
+      - "8081:80"
+      - "3478:3478/udp"
+    volumes:
+      - ./config.yaml:/etc/netbird/config.yaml:ro
+      - netbird-data:/var/lib/netbird
+    command: ["--config", "/etc/netbird/config.yaml"]
+    # Healthcheck is handled by scripts/setup-test-netbird.sh polling from the host
+
+volumes:
+  netbird-data:

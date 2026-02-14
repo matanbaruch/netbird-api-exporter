@@ -9,10 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 - Add user_id label to peer metrics
-Files modified in this change:
-- Modified: README.md
-- Modified: pkg/exporters/peers.go
-- Modified: pkg/exporters/peers_test.go
+- Use native ARM64 GitHub runner for PR Docker builds instead of QEMU emulation
+
+## [0.1.75] - 2026-02-14
+
+
+### Bugfix
+- Skip PR comment and coverage gate steps for fork PRs to avoid 403 permission errors
+- Fix unit tests making real API calls to api.netbird.io causing 30s timeouts
+
+## [0.1.74] - 2026-02-14
+
+
+### Features
+- Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets
+
+## [0.1.73] - 2026-01-31
+
+## [0.1.72] - 2026-01-08
+
+## [0.1.71] - 2026-01-08
+
+## [0.1.70] - 2026-01-03
+
+## [0.1.69] - 2025-12-11
+
+## [0.1.68] - 2025-12-11
+
+## [0.1.67] - 2025-12-11
+
+## [0.1.66] - 2025-12-11
+
+## [0.1.65] - 2025-12-11
+
+## [0.1.64] - 2025-12-11
+
+## [0.1.63] - 2025-12-11
+
+## [0.1.62] - 2025-12-11
+
+## [0.1.61] - 2025-12-11
+
+## [0.1.60] - 2025-12-11
 
 ## [0.1.59] - 2025-12-01
 

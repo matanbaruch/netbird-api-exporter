@@ -4,9 +4,9 @@ description: A Helm chart for NetBird API Exporter - Prometheus exporter for Net
 
 type: application
 
-version: 0.1.59
+version: 0.1.75
 
-appVersion: "0.1.59"
+appVersion: "0.1.75"
 
 icon: https://avatars.githubusercontent.com/u/100464677
 
@@ -59,6 +59,14 @@ annotations:
   artifacthub.io/changes: |
     - kind: added
       description: "Add user_id label to peer metrics"
+    - kind: added
+      description: "Use native ARM64 GitHub runner for PR Docker builds instead of QEMU emulation"
+    - kind: fixed
+      description: "Skip PR comment and coverage gate steps for fork PRs to avoid 403 permission errors"
+    - kind: fixed
+      description: "Fix unit tests making real API calls to api.netbird.io causing 30s timeouts"
+    - kind: added
+      description: "Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets"
     - kind: fixed
       description: "Fix GitHub Actions workflow syntax errors in external PR handling"
     - kind: added

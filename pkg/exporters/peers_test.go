@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
-	"github.com/netbirdio/netbird/management/server/http/api"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -347,7 +347,7 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.peersTotal, exporter.peersConnected, exporter.peersLastSeen, exporter.peersByOS, exporter.peersByCountry, exporter.peersByGroup, exporter.peersSSHEnabled, exporter.peersLoginExpired, exporter.peersApprovalRequired, exporter.accessiblePeersCount, exporter.peerConnectionStatusByName)
 
 	families, err := registry.Gather()
 	if err != nil {

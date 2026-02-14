@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	nbclient "github.com/netbirdio/netbird/management/client/rest"
-	"github.com/netbirdio/netbird/management/server/http/api"
+	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -282,7 +282,7 @@ func TestNetworksExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.networksTotal, exporter.networkRoutersCount, exporter.networkResourcesCount, exporter.networkPoliciesCount, exporter.networkRoutingPeersCount, exporter.networkInfo)
 
 	families, err := registry.Gather()
 	if err != nil {
@@ -320,7 +320,7 @@ func TestNetworksExporter_MetricsReset(t *testing.T) {
 
 	// Collect and verify metrics are reset
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.networksTotal, exporter.networkRoutersCount, exporter.networkResourcesCount, exporter.networkPoliciesCount, exporter.networkRoutingPeersCount, exporter.networkInfo)
 
 	families, err := registry.Gather()
 	if err != nil {
