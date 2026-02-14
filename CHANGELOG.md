@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.74] - 2026-02-14
+
 
 ### Features
 - Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets
