@@ -110,25 +110,27 @@ if [[ "$REDIRECT_1" == /* ]]; then
     REDIRECT_1="${NETBIRD_URL}${REDIRECT_1}"
 fi
 
-# Step 2d: Follow redirect chain - Dex approval -> callback with code
-# The final redirect goes to localhost:53000 which has no server running
-# We need to capture the Location header containing the authorization code
-# Use --max-redirs 10 but curl will fail when it tries to connect to localhost:53000
-REDIRECT_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-    -D - -o /dev/null \
-    -L --max-redirs 10 "$REDIRECT_1" 2>/dev/null || true)
+# Step 2c: Extract the authorization code
+# With a single connector, Dex may redirect directly to the callback URL
+# (skipping the approval page), so check REDIRECT_1 first
+AUTH_CODE=$(echo "$REDIRECT_1" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 
-# Extract the callback URL containing the authorization code
-CALLBACK_URL=$(echo "$REDIRECT_HEADERS" | grep -i "^location:" | grep "localhost:53000" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
+if [ -z "$AUTH_CODE" ]; then
+    # Need to follow more redirects (multi-connector setup with approval page)
+    REDIRECT_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+        -D - -o /dev/null \
+        -L --max-redirs 10 "$REDIRECT_1" 2>/dev/null || true)
 
-if [ -z "$CALLBACK_URL" ]; then
-    # Try to get the redirect URL without following it
-    CALLBACK_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-        -o /dev/null -w "%{redirect_url}" \
-        "$REDIRECT_1" 2>/dev/null || true)
+    CALLBACK_URL=$(echo "$REDIRECT_HEADERS" | grep -i "^location:" | grep "localhost:53000" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
+
+    if [ -z "$CALLBACK_URL" ]; then
+        CALLBACK_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+            -o /dev/null -w "%{redirect_url}" \
+            "$REDIRECT_1" 2>/dev/null || true)
+    fi
+
+    AUTH_CODE=$(echo "$CALLBACK_URL" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 fi
-
-AUTH_CODE=$(echo "$CALLBACK_URL" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 
 if [ -z "$AUTH_CODE" ]; then
     print_error "Failed to extract authorization code"
