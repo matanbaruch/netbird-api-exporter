@@ -2,66 +2,24 @@
 
 This directory contains security-related documentation for the NetBird API Exporter project.
 
-## Documents
-
-### [External PR Testing](external-pr-testing.md)
-
-**For Maintainers and Contributors**
-
-Comprehensive guide on how we securely handle pull requests from external contributors that require access to repository secrets. Covers:
-
-- Security model and safeguards
-- Approval process for maintainers
-- Testing workflow for contributors
-- Troubleshooting and best practices
-
 ## Security Overview
+
+### Integration Testing
+
+The project uses a self-hosted NetBird instance for integration testing. CI workflows automatically spin up a local NetBird server container, create an API token, and run tests against it. No external secrets are required.
 
 ### Repository Secrets
 
-The project uses the following secrets for testing:
+The project uses the following secrets:
 
-- **`NETBIRD_API_TOKEN`** - Required for integration tests with real NetBird API
 - **`CODECOV_TOKEN`** - For code coverage reporting
 - **`GITHUB_TOKEN`** - Automatic GitHub token for workflows
 
-### External Contributions
-
-External contributors (from forks) cannot access repository secrets by default. We've implemented a secure approval system that:
-
-1. **Runs basic tests automatically** (no secrets required)
-2. **Requires manual approval** for tests that need secrets
-3. **Uses GitHub labels** for approval workflow
-4. **Provides clear feedback** to contributors
-
 ### Security Features
 
-- **Manual code review required** before secret access
-- **Environment protection** for sensitive workflows
-- **Audit trail** of all approvals and test runs
-- **Clear separation** between safe and sensitive tests
-
-## Quick Start for Maintainers
-
-To approve an external PR for testing:
-
-**Option 1: Comment (Easiest)**
-
-```
-/approve
-```
-
-**Option 2: Manual Label**
-Add the `approved-for-testing` label via GitHub UI.
-
-## Quick Start for Contributors
-
-When you submit a PR from a fork:
-
-1. **Basic tests run immediately** - no waiting needed
-2. **You'll see a security check comment** explaining the process
-3. **Integration tests require approval** from maintainers
-4. **Be patient** - maintainers will review and approve safe PRs
+- **No secret dependencies for testing** - Self-hosted NetBird eliminates the need for shared API tokens
+- **All contributors can run full tests** - External contributors from forks have full test access
+- **Audit trail** of all test runs via GitHub Actions logs
 
 ## Reporting Security Issues
 

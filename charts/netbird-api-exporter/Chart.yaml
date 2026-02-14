@@ -4,9 +4,9 @@ description: A Helm chart for NetBird API Exporter - Prometheus exporter for Net
 
 type: application
 
-version: 0.1.73
+version: 0.1.74
 
-appVersion: "0.1.73"
+appVersion: "0.1.74"
 
 icon: https://avatars.githubusercontent.com/u/100464677
 
@@ -57,6 +57,8 @@ annotations:
     - title: NetBird API Exporter Dashboard
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
+    - kind: added
+      description: "Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets"
     - kind: fixed
       description: "Fix GitHub Actions workflow syntax errors in external PR handling"
     - kind: added
