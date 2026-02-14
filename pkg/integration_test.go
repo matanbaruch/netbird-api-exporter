@@ -14,13 +14,14 @@ import (
 	"github.com/matanbaruch/netbird-api-exporter/pkg/utils"
 )
 
-// Integration tests that require a real NetBird API token
-// These tests are skipped if NETBIRD_API_TOKEN is not set
+// Integration tests that require a NetBird API token.
+// Run scripts/setup-test-netbird.sh to start a local NetBird instance.
+// These tests are skipped if NETBIRD_API_TOKEN is not set.
 
 func TestIntegration_SkipIfNoToken(t *testing.T) {
 	token := os.Getenv("NETBIRD_API_TOKEN")
 	if token == "" {
-		t.Skip("Skipping integration tests: NETBIRD_API_TOKEN environment variable not set")
+		t.Skip("Skipping integration tests: NETBIRD_API_TOKEN not set. Run scripts/setup-test-netbird.sh to start a local NetBird instance")
 	}
 }
 
@@ -39,10 +40,10 @@ func getTestClient(t *testing.T) *nbclient.Client {
 
 func getURLAndCreds(t *testing.T) (string, string) {
 	t.Helper()
-	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "https://api.netbird.io")
+	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "http://localhost:8081")
 	token := os.Getenv("NETBIRD_API_TOKEN")
 	if token == "" {
-		t.Skipf("NETBIRD_API_TOKEN environment variable not set")
+		t.Skip("NETBIRD_API_TOKEN not set. Run scripts/setup-test-netbird.sh to start a local NetBird instance")
 	}
 	return baseURL, token
 }
@@ -50,10 +51,10 @@ func getURLAndCreds(t *testing.T) (string, string) {
 func TestIntegration_NetBirdExporter_RealAPI(t *testing.T) {
 	token := os.Getenv("NETBIRD_API_TOKEN")
 	if token == "" {
-		t.Skip("Skipping integration test: NETBIRD_API_TOKEN environment variable not set")
+		t.Skip("NETBIRD_API_TOKEN not set. Run scripts/setup-test-netbird.sh to start a local NetBird instance")
 	}
 
-	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "https://api.netbird.io")
+	baseURL := utils.GetEnvWithDefault("NETBIRD_API_URL", "http://localhost:8081")
 	exporter := exporters.NewNetBirdExporter(baseURL, token)
 
 	// Set up Prometheus registry for testing

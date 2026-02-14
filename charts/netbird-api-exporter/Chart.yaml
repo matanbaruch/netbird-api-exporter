@@ -61,6 +61,7 @@ annotations:
       description: "Add dns_label to netbird_peer_info metric for easier joins with latency data"
     - kind: added
       description: "Add netbird_peer_info metric with country_code, city_name, and os labels for joining with latency metrics"
+      description: "Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets"
     - kind: fixed
       description: "Fix GitHub Actions workflow syntax errors in external PR handling"
     - kind: added

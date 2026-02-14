@@ -92,8 +92,8 @@ NetBird API Exporter is a Prometheus exporter that collects metrics from the Net
 ## Environment Variables
 
 Key configuration through environment variables (see [env.example](env.example)):
-- `NETBIRD_API_URL`: NetBird API endpoint (default: https://api.netbird.io)
-- `NETBIRD_API_TOKEN`: Required API token for authentication
+- `NETBIRD_API_URL`: NetBird API endpoint (default: http://localhost:8081 for tests, https://api.netbird.io for production)
+- `NETBIRD_API_TOKEN`: API token for authentication (auto-generated from self-hosted instance in CI)
 - `LISTEN_ADDRESS`: HTTP server listen address (default: :8080)
 - `METRICS_PATH`: Metrics endpoint path (default: /metrics)
 - `LOG_LEVEL`: Logging level (default: info)
@@ -104,6 +104,8 @@ Key configuration through environment variables (see [env.example](env.example))
 - Follow the existing test patterns in the codebase
 - Use proper error assertions
 - Ensure tests are deterministic and fast
+- Integration tests use a self-hosted NetBird instance (see [tests/](tests/) and [scripts/setup-test-netbird.sh](scripts/setup-test-netbird.sh))
+- Run `make test-integration-setup` to start a local NetBird server, then `make test-integration` to run tests
 
 ## Git Commit Messages
 

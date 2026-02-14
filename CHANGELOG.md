@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets
+Files modified in this change:
+- Deleted: .github/environments/external-pr-testing.yml
+- Modified: .github/workflows/coverage.yml
+- Deleted: .github/workflows/external-pr.yml
+- Modified: .github/workflows/pr-build.yml
+- Deleted: .github/workflows/pr-tests.yml
+- Deleted: .github/workflows/privileged-tests.yml
+- Modified: .github/workflows/test.yml
+- Modified: AGENTS.md
+- Modified: Makefile
+- Modified: docs/security/README.md
+- Deleted: docs/security/approval-verification.md
+- Deleted: docs/security/external-pr-testing.md
+- Modified: pkg/integration_test.go
+- Modified: scripts/run-tests.sh
+- New: scripts/setup-test-netbird.sh
+- New: scripts/teardown-test-netbird.sh
+- New: tests/
+
 ## [0.1.73] - 2026-01-31
 
 ## [0.1.72] - 2026-01-08
