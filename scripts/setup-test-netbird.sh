@@ -67,63 +67,84 @@ else
     print_status "Setup may have already been completed, continuing..."
 fi
 
-# Step 2: Get JWT via OAuth2 Resource Owner Password Credentials (ROPC) grant
-print_status "Authenticating via OAuth2 password grant..."
+# Step 2: Get JWT via OAuth2 Authorization Code flow with PKCE
+# Dex doesn't support ROPC, so we automate the auth code flow with curl
+print_status "Authenticating via OAuth2 authorization code flow..."
+
+COOKIE_JAR=$(mktemp)
+
+# Generate PKCE code verifier and challenge
+CODE_VERIFIER=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 43)
+CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+
+# Step 2a: Start auth flow - follow redirects to login page (stop at login form)
+AUTH_URL="${NETBIRD_URL}/oauth2/auth?client_id=netbird-cli&response_type=code&redirect_uri=http://localhost:53000/&scope=openid+profile+email&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
+
+LOGIN_PAGE_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L -o /dev/null -w "%{url_effective}" "$AUTH_URL")
+print_status "Login page: $LOGIN_PAGE_URL"
+
+# Step 2b: Submit login form - POST to the login endpoint
+# The login form POSTs to /oauth2/auth/local/login with login + password
+LOGIN_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -D - -o /dev/null \
+    -X POST "${NETBIRD_URL}/oauth2/auth/local/login" \
+    -d "login=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}" 2>/dev/null || true)
+
+# Get the redirect location from login response
+REDIRECT_1=$(echo "$LOGIN_HEADERS" | grep -i "^location:" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
+
+if [ -z "$REDIRECT_1" ]; then
+    print_error "Login form did not return a redirect"
+    print_error "Login response headers: $LOGIN_HEADERS"
+    rm -f "$COOKIE_JAR"
+    exit 1
+fi
+
+print_status "Login redirect: $REDIRECT_1"
+
+# Make redirect absolute if relative
+if [[ "$REDIRECT_1" == /* ]]; then
+    REDIRECT_1="${NETBIRD_URL}${REDIRECT_1}"
+fi
+
+# Step 2c: Follow redirect chain - Dex approval -> callback with code
+# The final redirect goes to localhost:53000 which has no server, so curl will fail
+# We capture the Location header that contains the code
+REDIRECT_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+    -D - -o /dev/null \
+    -L --max-redirs 10 "$REDIRECT_1" 2>/dev/null || true)
+
+# Extract the callback URL containing the authorization code
+CALLBACK_URL=$(echo "$REDIRECT_HEADERS" | grep -i "^location:" | grep "localhost:53000" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
+
+if [ -z "$CALLBACK_URL" ]; then
+    # The last redirect might have been the callback itself (curl follows it and fails)
+    # Try to get it from the effective URL
+    CALLBACK_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+        -o /dev/null -w "%{redirect_url}" \
+        "$REDIRECT_1" 2>/dev/null || true)
+fi
+
+AUTH_CODE=$(echo "$CALLBACK_URL" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
+
+if [ -z "$AUTH_CODE" ]; then
+    print_error "Failed to extract authorization code"
+    print_error "Callback URL: $CALLBACK_URL"
+    print_error "Redirect headers: $REDIRECT_HEADERS"
+    rm -f "$COOKIE_JAR"
+    exit 1
+fi
+
+print_status "Authorization code obtained"
+
+# Step 2d: Exchange authorization code for JWT tokens
 JWT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/oauth2/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=password&username=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&client_id=netbird-cli&scope=openid+profile+email")
+    -d "grant_type=authorization_code&code=${AUTH_CODE}&redirect_uri=http://localhost:53000/&client_id=netbird-cli&code_verifier=${CODE_VERIFIER}")
 
 ACCESS_TOKEN=$(echo "$JWT_RESPONSE" | jq -r '.access_token // empty')
 
-if [ -z "$ACCESS_TOKEN" ]; then
-    print_warning "ROPC grant failed, trying authorization code flow..."
-
-    # Generate PKCE code verifier and challenge
-    CODE_VERIFIER=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 43)
-    CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-
-    # Start auth code flow - get login page URL
-    AUTH_URL="${NETBIRD_URL}/oauth2/auth?client_id=netbird-cli&response_type=code&redirect_uri=http://localhost:53000/&scope=openid+profile+email&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
-
-    # Follow redirects to find the login form action URL
-    AUTH_REDIRECT=$(curl -s -L -o /dev/null -w "%{url_effective}" "$AUTH_URL" 2>/dev/null || true)
-    print_status "Auth redirect: $AUTH_REDIRECT"
-
-    # Extract the request ID from the redirect URL
-    REQ_ID=$(echo "$AUTH_REDIRECT" | grep -oP 'req=\K[^&]+' || echo "")
-
-    if [ -n "$REQ_ID" ]; then
-        # Submit login form
-        LOGIN_RESPONSE=$(curl -s -D - -X POST "${NETBIRD_URL}/oauth2/auth/local" \
-            -d "login=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&back=&state=" \
-            --data-urlencode "req=${REQ_ID}" \
-            -L --max-redirs 0 2>/dev/null || true)
-
-        # Follow the approval redirect to get the code
-        APPROVAL_LOCATION=$(echo "$LOGIN_RESPONSE" | grep -i "^location:" | tail -1 | tr -d '\r' | awk '{print $2}')
-
-        if [ -n "$APPROVAL_LOCATION" ]; then
-            # Follow redirect chain to get the authorization code
-            CALLBACK_URL=$(curl -s -D - -o /dev/null "$APPROVAL_LOCATION" -L --max-redirs 5 2>/dev/null | grep -i "^location:" | grep "localhost:53000" | tail -1 | tr -d '\r' | awk '{print $2}')
-
-            if [ -z "$CALLBACK_URL" ]; then
-                # Try getting code from the approval location directly
-                CALLBACK_URL="$APPROVAL_LOCATION"
-            fi
-
-            AUTH_CODE=$(echo "$CALLBACK_URL" | grep -oP 'code=\K[^&]+' || echo "")
-
-            if [ -n "$AUTH_CODE" ]; then
-                # Exchange code for token
-                JWT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/oauth2/token" \
-                    -H "Content-Type: application/x-www-form-urlencoded" \
-                    -d "grant_type=authorization_code&code=${AUTH_CODE}&redirect_uri=http://localhost:53000/&client_id=netbird-cli&code_verifier=${CODE_VERIFIER}")
-
-                ACCESS_TOKEN=$(echo "$JWT_RESPONSE" | jq -r '.access_token // empty')
-            fi
-        fi
-    fi
-fi
+rm -f "$COOKIE_JAR"
 
 if [ -z "$ACCESS_TOKEN" ]; then
     print_error "Failed to obtain JWT access token"
