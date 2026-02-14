@@ -77,25 +77,60 @@ COOKIE_JAR=$(mktemp)
 CODE_VERIFIER=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 43)
 CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
 
-# Step 2a: Start auth flow - follow redirects to login page (stop at login form)
+# Step 2a: Start auth flow - get login page HTML and URL in a single request
 AUTH_URL="${NETBIRD_URL}/oauth2/auth?client_id=netbird-cli&response_type=code&redirect_uri=http://localhost:53000/&scope=openid+profile+email&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
 
-LOGIN_PAGE_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L -o /dev/null -w "%{url_effective}" "$AUTH_URL")
-print_status "Login page: $LOGIN_PAGE_URL"
+DELIM="__CURL_URL__"
+LOGIN_COMBINED=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -L -w "${DELIM}%{url_effective}" "$AUTH_URL")
+LOGIN_PAGE_URL="${LOGIN_COMBINED##*${DELIM}}"
+LOGIN_HTML="${LOGIN_COMBINED%%${DELIM}*}"
 
-# Step 2b: Submit login form - POST to the login endpoint
-# The login form POSTs to /oauth2/auth/local/login with login + password
+print_status "Login page URL: $LOGIN_PAGE_URL"
+
+# Step 2b: Parse the login form to find action URL and hidden fields
+# Dex login form typically has: <form action="..."> and <input type="hidden" name="req" value="AUTH_REQ_ID">
+FORM_ACTION=$(echo "$LOGIN_HTML" | grep -oi 'action="[^"]*"' | head -1 | sed "s/action=//i;s/\"//g")
+
+if [ -n "$FORM_ACTION" ]; then
+    # Make form action absolute if relative
+    if [[ "$FORM_ACTION" == /* ]]; then
+        FORM_ACTION="${NETBIRD_URL}${FORM_ACTION}"
+    fi
+else
+    # Fallback: POST to the login page URL itself
+    FORM_ACTION="$LOGIN_PAGE_URL"
+fi
+
+# Extract hidden 'req' field (Dex auth request ID)
+REQ_VALUE=$(echo "$LOGIN_HTML" | grep -oi 'name="req"[^>]*value="[^"]*"' | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1)
+if [ -z "$REQ_VALUE" ]; then
+    # Try reverse attribute order: value before name
+    REQ_VALUE=$(echo "$LOGIN_HTML" | grep -oi 'value="[^"]*"[^>]*name="req"' | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1)
+fi
+
+print_status "Form action: $FORM_ACTION"
+print_status "Auth req ID: ${REQ_VALUE:-'(none found)'}"
+
+# Step 2c: Submit login form with credentials and hidden fields
+CURL_POST_ARGS=(--data-urlencode "login=${ADMIN_EMAIL}" --data-urlencode "password=${ADMIN_PASSWORD}")
+if [ -n "$REQ_VALUE" ]; then
+    CURL_POST_ARGS+=(--data-urlencode "req=${REQ_VALUE}")
+fi
+
 LOGIN_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -D - -o /dev/null \
-    -X POST "${NETBIRD_URL}/oauth2/auth/local/login" \
-    -d "login=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}" 2>/dev/null || true)
+    -X POST "$FORM_ACTION" \
+    "${CURL_POST_ARGS[@]}" 2>/dev/null || true)
 
 # Get the redirect location from login response
 REDIRECT_1=$(echo "$LOGIN_HEADERS" | grep -i "^location:" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
 
 if [ -z "$REDIRECT_1" ]; then
     print_error "Login form did not return a redirect"
-    print_error "Login response headers: $LOGIN_HEADERS"
+    print_error "Login response headers:"
+    echo "$LOGIN_HEADERS" | head -20
+    print_error "Login page HTML (first 500 chars):"
+    echo "$LOGIN_HTML" | head -c 500
     rm -f "$COOKIE_JAR"
     exit 1
 fi
@@ -107,9 +142,10 @@ if [[ "$REDIRECT_1" == /* ]]; then
     REDIRECT_1="${NETBIRD_URL}${REDIRECT_1}"
 fi
 
-# Step 2c: Follow redirect chain - Dex approval -> callback with code
-# The final redirect goes to localhost:53000 which has no server, so curl will fail
-# We capture the Location header that contains the code
+# Step 2d: Follow redirect chain - Dex approval -> callback with code
+# The final redirect goes to localhost:53000 which has no server running
+# We need to capture the Location header containing the authorization code
+# Use --max-redirs 10 but curl will fail when it tries to connect to localhost:53000
 REDIRECT_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -D - -o /dev/null \
     -L --max-redirs 10 "$REDIRECT_1" 2>/dev/null || true)
@@ -118,8 +154,7 @@ REDIRECT_HEADERS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
 CALLBACK_URL=$(echo "$REDIRECT_HEADERS" | grep -i "^location:" | grep "localhost:53000" | head -1 | tr -d '\r\n' | sed 's/^[Ll]ocation: *//')
 
 if [ -z "$CALLBACK_URL" ]; then
-    # The last redirect might have been the callback itself (curl follows it and fails)
-    # Try to get it from the effective URL
+    # Try to get the redirect URL without following it
     CALLBACK_URL=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
         -o /dev/null -w "%{redirect_url}" \
         "$REDIRECT_1" 2>/dev/null || true)
@@ -130,14 +165,15 @@ AUTH_CODE=$(echo "$CALLBACK_URL" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 if [ -z "$AUTH_CODE" ]; then
     print_error "Failed to extract authorization code"
     print_error "Callback URL: $CALLBACK_URL"
-    print_error "Redirect headers: $REDIRECT_HEADERS"
+    print_error "All redirect headers:"
+    echo "$REDIRECT_HEADERS" | grep -i "^location:" || echo "(no location headers)"
     rm -f "$COOKIE_JAR"
     exit 1
 fi
 
 print_status "Authorization code obtained"
 
-# Step 2d: Exchange authorization code for JWT tokens
+# Step 2e: Exchange authorization code for JWT tokens
 JWT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/oauth2/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=authorization_code&code=${AUTH_CODE}&redirect_uri=http://localhost:53000/&client_id=netbird-cli&code_verifier=${CODE_VERIFIER}")
