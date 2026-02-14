@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ### Bugfix
+- Skip PR comment and coverage gate steps for fork PRs to avoid 403 permission errors
+Files modified in this change:
+- Modified: .github/workflows/coverage.yml
+- Modified: .github/workflows/test.yml
 - Fix unit tests making real API calls to api.netbird.io causing 30s timeouts
 Files modified in this change:
 - Modified: pkg/exporters/dns_test.go
