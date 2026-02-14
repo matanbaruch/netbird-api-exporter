@@ -58,15 +58,23 @@ run_unit_tests() {
 # Function to run integration tests
 run_integration_tests() {
     print_status "Running integration tests..."
-    
+
     if [ -z "$NETBIRD_API_TOKEN" ]; then
-        print_warning "NETBIRD_API_TOKEN not set - integration tests will be skipped"
-        print_status "Set NETBIRD_API_TOKEN environment variable to run integration tests"
-        return 0
+        print_status "NETBIRD_API_TOKEN not set - attempting to start local NetBird server..."
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [ -x "$SCRIPT_DIR/setup-test-netbird.sh" ]; then
+            # Source the setup script to get exported env vars
+            eval "$("$SCRIPT_DIR/setup-test-netbird.sh" | grep '^export ')"
+        fi
+        if [ -z "$NETBIRD_API_TOKEN" ]; then
+            print_warning "NETBIRD_API_TOKEN still not set - integration tests will be skipped"
+            print_status "Run scripts/setup-test-netbird.sh to start a local NetBird instance"
+            return 0
+        fi
     fi
-    
+
     print_status "NETBIRD_API_TOKEN is set - running integration tests"
-    
+
     if go test -v -timeout "$INTEGRATION_TIMEOUT" -run="Integration_" "$INTEGRATION_PACKAGE"; then
         print_success "Integration tests passed!"
     else
@@ -112,7 +120,7 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  unit                Run unit tests only"
-    echo "  integration         Run integration tests only (requires NETBIRD_API_TOKEN)"
+    echo "  integration         Run integration tests (auto-starts local NetBird if needed)"
     echo "  benchmark           Run benchmark tests only"
     echo "  performance         Run performance tests only"
     echo "  all                 Run all tests (default)"
@@ -125,13 +133,13 @@ show_help() {
     echo "  --timeout DURATION  Set timeout for tests (default: $UNIT_TIMEOUT for unit, $INTEGRATION_TIMEOUT for integration)"
     echo ""
     echo "Environment Variables:"
-    echo "  NETBIRD_API_TOKEN   API token for NetBird Cloud (required for integration tests)"
-    echo "  NETBIRD_API_URL     Custom NetBird API URL (default: https://api.netbird.io)"
+    echo "  NETBIRD_API_TOKEN   API token for NetBird (auto-generated from local instance if not set)"
+    echo "  NETBIRD_API_URL     NetBird API URL (default: http://localhost:8081)"
     echo ""
     echo "Examples:"
     echo "  $0 unit                          Run only unit tests"
-    echo "  $0 integration                   Run only integration tests"
-    echo "  NETBIRD_API_TOKEN=xxx $0 all     Run all tests with API token"
+    echo "  $0 integration                   Run integration tests (auto-starts local NetBird)"
+    echo "  NETBIRD_API_TOKEN=xxx $0 all     Run all tests with existing API token"
     echo "  $0 --timeout 1m unit             Run unit tests with 1 minute timeout"
 }
 

@@ -33,9 +33,6 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -61,18 +58,6 @@ jobs:
         cache-to: type=gha,mode=max
         outputs: type=docker,dest=/tmp/image.tar
     
-    - name: Build multi-platform validation
-      id: build-multi-platform
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: false
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
     - name: Upload Docker image artifact
       uses: actions/upload-artifact@v6
       with:
@@ -98,7 +83,51 @@ jobs:
           $IMAGE_TAG || echo "Expected to fail without API token"
         
         echo "✅ Single-platform image (amd64) tested successfully"
-        echo "✅ Multi-platform build (amd64, arm64) validated during build step"
+
+  build-docker-image-arm64:
+    name: Build Docker Image (ARM64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=pr,prefix=pr-
+          type=sha,prefix=sha-
+
+    - name: Build Docker image (ARM64)
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: false
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        outputs: type=docker,dest=/tmp/image-arm64.tar
+
+    - name: Test Docker image (ARM64)
+      run: |
+        docker load -i /tmp/image-arm64.tar
+
+        # Get the first tag from the metadata output
+        IMAGE_TAG=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)
+        echo "Testing image: $IMAGE_TAG (linux/arm64)"
+
+        # Test basic functionality
+        docker run --rm $IMAGE_TAG --help
+
+        echo "✅ ARM64 image built and tested successfully"
 
   validate-helm-chart:
     name: Validate Helm Chart
@@ -142,19 +171,9 @@ jobs:
         cat /tmp/helm-template-output.yaml
 
     - name: Test Helm chart with different values
-      env:
-        NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
       run: |
-        # Determine token to use for testing
-        if [ -n "$NETBIRD_API_TOKEN" ]; then
-          TEST_TOKEN="$NETBIRD_API_TOKEN"
-          TEST_API_URL="https://api.netbird.io"
-          echo "🔑 Using real NetBird API token for Helm chart testing"
-        else
-          TEST_TOKEN="test-token"
-          TEST_API_URL="https://api.example.com"
-          echo "⚠️ Using dummy token for Helm chart testing"
-        fi
+        TEST_TOKEN="test-token-for-validation"
+        TEST_API_URL="https://api.example.com"
 
         # Test with minimal values
         helm template netbird-api-exporter charts/netbird-api-exporter \
@@ -183,18 +202,16 @@ jobs:
           --set serviceMonitor.enabled=true \
           --set netbird.apiToken="$TEST_TOKEN" \
           --dry-run > /dev/null
-        
-        # Test with external secret enabled (if real token available)
-        if [ -n "$NETBIRD_API_TOKEN" ]; then
-          helm template netbird-api-exporter charts/netbird-api-exporter \
-            --set externalSecret.enabled=true \
-            --set externalSecret.secretStoreRef.name="vault-backend" \
-            --set externalSecret.data[0].secretKey="netbird-api-token" \
-            --set externalSecret.data[0].remoteRef.key="netbird/api" \
-            --set externalSecret.data[0].remoteRef.property="token" \
-            --dry-run > /dev/null
-          echo "✅ External Secret configuration validated"
-        fi
+
+        # Test with external secret enabled
+        helm template netbird-api-exporter charts/netbird-api-exporter \
+          --set externalSecret.enabled=true \
+          --set externalSecret.secretStoreRef.name="vault-backend" \
+          --set externalSecret.data[0].secretKey="netbird-api-token" \
+          --set externalSecret.data[0].remoteRef.key="netbird/api" \
+          --set externalSecret.data[0].remoteRef.property="token" \
+          --dry-run > /dev/null
+        echo "✅ External Secret configuration validated"
 
     - name: Validate Helm chart best practices
       run: |
@@ -296,36 +313,30 @@ jobs:
       run: |
         docker load -i /tmp/image.tar
 
+    - name: Make scripts executable
+      run: chmod +x scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
+
+    - name: Start self-hosted NetBird
+      run: ./scripts/setup-test-netbird.sh
+
     - name: Test image with docker compose
-      env:
-        NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
       run: |
         # Get the first tag from the metadata output
         IMAGE_TAG=$(echo '${{ needs.build-docker-image.outputs.image-tag }}' | head -n1)
-        
-        # Determine API URL and token based on secret availability
-        if [ -n "$NETBIRD_API_TOKEN" ]; then
-          API_URL="https://api.netbird.io"
-          API_TOKEN="$NETBIRD_API_TOKEN"
-          echo "🔑 Using real NetBird API token for integration testing"
-        else
-          API_URL="https://api.example.com"
-          API_TOKEN="test-token"
-          echo "⚠️ No API token available, using dummy values (limited testing)"
-        fi
-        
-        # Create a test docker compose file
+
+        # Create a test docker compose file using self-hosted NetBird
         cat > docker-compose.test.yml << EOF
-        version: '3.8'
         services:
           netbird-exporter:
             image: $IMAGE_TAG
             environment:
-              - NETBIRD_API_URL=$API_URL
-              - NETBIRD_API_TOKEN=$API_TOKEN
+              - NETBIRD_API_URL=${NETBIRD_API_URL}
+              - NETBIRD_API_TOKEN=${NETBIRD_API_TOKEN}
               - LOG_LEVEL=debug
             ports:
               - "8080:8080"
+            extra_hosts:
+              - "host.docker.internal:host-gateway"
             healthcheck:
               test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
               interval: 5s
@@ -333,18 +344,18 @@ jobs:
               retries: 3
               start_period: 10s
         EOF
-        
+
         # Start the service and test basic functionality
         docker compose -f docker-compose.test.yml up -d
-        
+
         # Wait a bit for startup
         sleep 10
-        
-        # Test health endpoint (should work without valid API token)
+
+        # Test health endpoint
         echo "Testing health endpoint..."
         HEALTH_RESPONSE=$(curl -s http://localhost:8080/health)
         echo "Health response: $HEALTH_RESPONSE"
-        
+
         # Verify health response contains expected fields
         if echo "$HEALTH_RESPONSE" | grep -q '"status":"healthy"'; then
           echo "✅ Health endpoint working correctly"
@@ -352,15 +363,15 @@ jobs:
           echo "❌ Health endpoint not returning expected response"
           exit 1
         fi
-        
+
         # Test root endpoint (should show basic info)
         echo "Testing root endpoint..."
         curl -s http://localhost:8080/ | grep -q "NetBird API Exporter" || echo "Root endpoint accessible"
-        
+
         # Test metrics endpoint
         echo "Testing metrics endpoint..."
         METRICS_RESPONSE=$(curl -s http://localhost:8080/metrics)
-        
+
         # Check for basic Go metrics (should always be present)
         if echo "$METRICS_RESPONSE" | grep -q "go_"; then
           echo "✅ Basic Go metrics present"
@@ -368,7 +379,7 @@ jobs:
           echo "❌ Go metrics not found"
           exit 1
         fi
-        
+
         # Check for promhttp metrics (should always be present)
         if echo "$METRICS_RESPONSE" | grep -q "promhttp_"; then
           echo "✅ Prometheus HTTP metrics present"
@@ -376,53 +387,34 @@ jobs:
           echo "❌ Prometheus HTTP metrics not found"
           exit 1
         fi
-        
-        # Enhanced testing with real API token
-        if [ -n "$NETBIRD_API_TOKEN" ] && [ "$API_TOKEN" != "test-token" ]; then
-          echo "🧪 Running enhanced integration tests with real API..."
-          
-          # Check for NetBird-specific metrics (should be present with real token)
-          if echo "$METRICS_RESPONSE" | grep -q "netbird_"; then
-            echo "✅ NetBird metrics are being collected"
-            
-            # Count different metric types
-            PEERS_METRICS=$(echo "$METRICS_RESPONSE" | grep -c "netbird_peers" || echo "0")
-            GROUPS_METRICS=$(echo "$METRICS_RESPONSE" | grep -c "netbird_groups" || echo "0")
-            USERS_METRICS=$(echo "$METRICS_RESPONSE" | grep -c "netbird_users" || echo "0")
-            
-            echo "📊 Metrics collected:"
-            echo "   - Peers metrics: $PEERS_METRICS"
-            echo "   - Groups metrics: $GROUPS_METRICS" 
-            echo "   - Users metrics: $USERS_METRICS"
-            
-            if [ $((PEERS_METRICS + GROUPS_METRICS + USERS_METRICS)) -gt 0 ]; then
-              echo "✅ NetBird API integration working correctly"
-            else
-              echo "⚠️ NetBird metrics present but no data collected (might be expected)"
-            fi
-          else
-            echo "⚠️ No NetBird-specific metrics found (API might be unreachable or token invalid)"
-          fi
-          
-          # Test that the exporter handles API responses properly
-          EXPORTER_LOGS=$(docker compose -f docker-compose.test.yml logs netbird-exporter 2>&1)
-          if echo "$EXPORTER_LOGS" | grep -qi "error\|fail" && ! echo "$EXPORTER_LOGS" | grep -qi "context deadline exceeded\|connection refused"; then
-            echo "⚠️ Found errors in exporter logs (might indicate issues):"
-            echo "$EXPORTER_LOGS" | grep -i "error\|fail" | head -5
-          else
-            echo "✅ Exporter logs look healthy"
-          fi
+
+        # Check for NetBird-specific metrics
+        if echo "$METRICS_RESPONSE" | grep -q "netbird_"; then
+          echo "✅ NetBird metrics are being collected"
         else
-          echo "ℹ️ Limited testing with dummy token - some NetBird metrics won't be available"
+          echo "⚠️ No NetBird-specific metrics found (API might be unreachable)"
         fi
-        
+
+        # Check exporter logs for errors
+        EXPORTER_LOGS=$(docker compose -f docker-compose.test.yml logs netbird-exporter 2>&1)
+        if echo "$EXPORTER_LOGS" | grep -qi "error\|fail" && ! echo "$EXPORTER_LOGS" | grep -qi "context deadline exceeded\|connection refused"; then
+          echo "⚠️ Found errors in exporter logs (might indicate issues):"
+          echo "$EXPORTER_LOGS" | grep -i "error\|fail" | head -5
+        else
+          echo "✅ Exporter logs look healthy"
+        fi
+
         # Cleanup
         docker compose -f docker-compose.test.yml down
+
+    - name: Stop self-hosted NetBird
+      if: always()
+      run: ./scripts/teardown-test-netbird.sh
 
   pr-summary:
     name: PR Build Summary
     runs-on: ubuntu-latest
-    needs: [build-docker-image, validate-helm-chart, security-scan, integration-test-with-image]
+    needs: [build-docker-image, build-docker-image-arm64, validate-helm-chart, security-scan, integration-test-with-image]
     if: always()
     steps:
     - name: Generate PR summary
@@ -431,23 +423,20 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Status | Details |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Docker Image Build | ${{ needs.build-docker-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Multi-arch build validation (amd64, arm64) + testable amd64 image |" >> $GITHUB_STEP_SUMMARY
+        echo "| Docker Image Build (amd64) | ${{ needs.build-docker-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Native amd64 build + testable image artifact |" >> $GITHUB_STEP_SUMMARY
+        echo "| Docker Image Build (arm64) | ${{ needs.build-docker-image-arm64.result == 'success' && '✅ Success' || '❌ Failed' }} | Native arm64 build validation |" >> $GITHUB_STEP_SUMMARY
         echo "| Helm Chart Validation | ${{ needs.validate-helm-chart.result == 'success' && '✅ Success' || '❌ Failed' }} | Schema validation, linting, templating, and packaging tests |" >> $GITHUB_STEP_SUMMARY
         echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Success' || needs.security-scan.result == 'failure' && '⚠️ Issues Found' || '❌ Failed' }} | Trivy vulnerability scan |" >> $GITHUB_STEP_SUMMARY
-        echo "| Integration Test | ${{ needs.integration-test-with-image.result == 'success' && '✅ Success' || '❌ Failed' }} | ${{ secrets.NETBIRD_API_TOKEN && 'Full API integration testing with real token' || 'Basic functionality testing with dummy token' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Test | ${{ needs.integration-test-with-image.result == 'success' && '✅ Success' || '❌ Failed' }} | Full API integration testing with self-hosted NetBird |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        if [[ "${{ needs.build-docker-image.result }}" == "success" && "${{ needs.validate-helm-chart.result }}" == "success" ]]; then
+        if [[ "${{ needs.build-docker-image.result }}" == "success" && "${{ needs.build-docker-image-arm64.result }}" == "success" && "${{ needs.validate-helm-chart.result }}" == "success" ]]; then
           echo "🎉 **All builds successful!** This PR is ready for review." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Build Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker image: Built and tested (multi-arch)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker image: Built and tested natively on amd64 + arm64" >> $GITHUB_STEP_SUMMARY
           echo "- Helm chart: Schema validated, linted, and packaged" >> $GITHUB_STEP_SUMMARY
-          if [[ -n "${{ secrets.NETBIRD_API_TOKEN }}" ]]; then
-            echo "- ✅ **Enhanced testing**: Used real NetBird API token for comprehensive validation" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ⚠️ **Limited testing**: No API token available, used dummy values" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "- ✅ **Full testing**: Used self-hosted NetBird for integration validation" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts are available for download for 7 days" >> $GITHUB_STEP_SUMMARY
         else
           echo "❌ **Some builds failed.** Please check the individual job logs for details." >> $GITHUB_STEP_SUMMARY

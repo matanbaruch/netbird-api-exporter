@@ -82,7 +82,7 @@ jobs:
     name: Coverage Gate
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v6
         with:
@@ -295,13 +295,18 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Make test script executable
-        run: chmod +x scripts/run-tests.sh
+      - name: Make scripts executable
+        run: chmod +x scripts/run-tests.sh scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
+
+      - name: Start self-hosted NetBird
+        run: ./scripts/setup-test-netbird.sh
 
       - name: Run integration tests
-        env:
-          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
         run: ./scripts/run-tests.sh integration
+
+      - name: Stop self-hosted NetBird
+        if: always()
+        run: ./scripts/teardown-test-netbird.sh
 
   performance-tests:
     name: Performance Tests
@@ -352,9 +357,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Start services
-        env:
-          NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
+      - name: Make scripts executable
+        run: chmod +x scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
+
+      - name: Start self-hosted NetBird
+        run: ./scripts/setup-test-netbird.sh
+
+      - name: Start exporter services
         run: docker compose up -d
 
       - name: Wait for exporter to be ready
@@ -364,12 +373,22 @@ jobs:
         run: |
           curl -sSf http://localhost:8080/metrics
 
+      - name: Stop self-hosted NetBird
+        if: always()
+        run: ./scripts/teardown-test-netbird.sh
+
   helm-chart-test:
     name: Helm Chart Test
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
       - uses: actions/checkout@v6
+
+      - name: Make scripts executable
+        run: chmod +x scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
+
+      - name: Start self-hosted NetBird
+        run: ./scripts/setup-test-netbird.sh
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -392,8 +411,8 @@ jobs:
             tag: test
             pullPolicy: Never
           netbird:
-            apiToken: ${{ secrets.NETBIRD_API_TOKEN }}
-            apiUrl: "https://api.netbird.io"
+            apiToken: "${NETBIRD_API_TOKEN}"
+            apiUrl: "${NETBIRD_API_URL}"
           EOF
 
       - uses: azure/setup-helm@v4
@@ -450,6 +469,10 @@ jobs:
           kubectl get pods -l app.kubernetes.io/name=netbird-api-exporter
           kubectl describe deployment netbird-test-netbird-api-exporter
 
+      - name: Stop self-hosted NetBird
+        if: always()
+        run: ./scripts/teardown-test-netbird.sh
+
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
@@ -472,8 +495,8 @@ jobs:
           echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Coverage Gate | ${{ needs.coverage-gate.result == 'success' && '✅ Passed' || needs.coverage-gate.result == 'skipped' && '⏭️ Skipped (Push to main)' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || needs.integration-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage Gate | ${{ needs.coverage-gate.result == 'success' && '✅ Passed' || needs.coverage-gate.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance Tests | ${{ needs.performance-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Benchmark Tests | ${{ needs.benchmark-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Compose Test | ${{ needs.docker-compose-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
@@ -500,7 +523,7 @@ jobs:
           fi
 
           if [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
-             [[ "${{ needs.integration-tests.result }}" != "success" && "${{ needs.integration-tests.result }}" != "skipped" ]] || \
+             [[ "${{ needs.integration-tests.result }}" != "success" ]] || \
              [[ "${{ needs.performance-tests.result }}" != "success" ]] || \
              [[ "${{ needs.benchmark-tests.result }}" != "success" ]] || \
              [[ "${{ needs.docker-compose-test.result }}" != "success" ]] || \

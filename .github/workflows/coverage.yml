@@ -120,7 +120,7 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Comment PR with coverage
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
       uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -176,7 +176,7 @@ jobs:
     name: Integration Tests with Coverage
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration-tests'))
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
@@ -191,23 +191,26 @@ jobs:
         go mod download
         go mod tidy
 
+    - name: Make scripts executable
+      run: chmod +x scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
+
+    - name: Start self-hosted NetBird
+      run: ./scripts/setup-test-netbird.sh
+
     - name: Run integration tests
-      env:
-        NETBIRD_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
       run: |
-        if [ -n "$NETBIRD_API_TOKEN" ]; then
-          echo "Running integration tests with coverage..."
-          GO111MODULE=on go test -v -timeout=5m -run="Integration_" -coverprofile=integration-coverage.out ./...
-        else
-          echo "⚠️ NETBIRD_API_TOKEN not set - skipping integration tests"
-        fi
+        echo "Running integration tests with coverage..."
+        GO111MODULE=on go test -v -timeout=5m -run="Integration_" -coverprofile=integration-coverage.out ./...
 
     - name: Upload integration coverage
-      if: env.NETBIRD_API_TOKEN != ''
       uses: actions/upload-artifact@v6
       with:
         name: integration-coverage
         path: integration-coverage.out
+
+    - name: Stop self-hosted NetBird
+      if: always()
+      run: ./scripts/teardown-test-netbird.sh
 
   performance-tests:
     name: Performance Tests and Benchmarks
@@ -247,7 +250,7 @@ jobs:
   coverage-comparison:
     name: Coverage Comparison
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: test-coverage
     
     steps:
