@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 - Add user_id label to peer metrics
 
+## [0.1.77] - 2026-02-14
+
 ## [0.1.76] - 2026-02-14
 
 
