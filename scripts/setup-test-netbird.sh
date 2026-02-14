@@ -11,9 +11,14 @@ NC='\033[0m'
 COMPOSE_FILE="tests/docker-compose.netbird.yml"
 CONTAINER_NAME="netbird-server"
 MAX_WAIT=90
+NETBIRD_URL="http://localhost:8081"
+ADMIN_EMAIL="admin@test.local"
+ADMIN_PASSWORD="T3stP@ssw0rd!"
+ADMIN_NAME="CI Admin"
 
 print_status() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Resolve the project root (where this script lives is scripts/)
@@ -27,11 +32,11 @@ print_status "Starting self-hosted NetBird server for testing..."
 # Start the container
 docker compose -f "$COMPOSE_FILE" up -d
 
-# Wait for the server to be healthy (use curl from host since wget may not be in container)
+# Wait for the server to be healthy (poll from host)
 print_status "Waiting for NetBird server to be ready (max ${MAX_WAIT}s)..."
 elapsed=0
 while [ $elapsed -lt $MAX_WAIT ]; do
-    if curl -sf http://localhost:8081/oauth2/.well-known/openid-configuration >/dev/null 2>&1; then
+    if curl -sf "${NETBIRD_URL}/oauth2/.well-known/openid-configuration" >/dev/null 2>&1; then
         print_success "NetBird server is ready! (${elapsed}s)"
         break
     fi
@@ -45,31 +50,134 @@ if [ $elapsed -ge $MAX_WAIT ]; then
     exit 1
 fi
 
-# Create an API token
-print_status "Creating API token..."
-TOKEN_OUTPUT=$(docker exec "$CONTAINER_NAME" /go/bin/netbird-server token create --name "ci-test" --config /etc/netbird/config.yaml 2>&1)
-TOKEN=$(echo "$TOKEN_OUTPUT" | grep "^Token:" | awk '{print $2}')
+# Step 1: Create admin user via setup endpoint
+print_status "Creating admin user via /api/setup..."
+SETUP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${NETBIRD_URL}/api/setup" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"name\":\"${ADMIN_NAME}\"}")
 
-if [ -z "$TOKEN" ]; then
-    print_error "Failed to create API token"
-    echo "$TOKEN_OUTPUT"
+SETUP_HTTP_CODE=$(echo "$SETUP_RESPONSE" | tail -1)
+SETUP_BODY=$(echo "$SETUP_RESPONSE" | sed '$d')
+
+if [ "$SETUP_HTTP_CODE" -ge 200 ] && [ "$SETUP_HTTP_CODE" -lt 300 ]; then
+    USER_ID=$(echo "$SETUP_BODY" | jq -r '.user_id // .userId // empty')
+    print_success "Admin user created (HTTP ${SETUP_HTTP_CODE})"
+else
+    print_warning "Setup returned HTTP ${SETUP_HTTP_CODE}: ${SETUP_BODY}"
+    print_status "Setup may have already been completed, continuing..."
+fi
+
+# Step 2: Get JWT via OAuth2 Resource Owner Password Credentials (ROPC) grant
+print_status "Authenticating via OAuth2 password grant..."
+JWT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/oauth2/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password&username=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&client_id=netbird-cli&scope=openid+profile+email")
+
+ACCESS_TOKEN=$(echo "$JWT_RESPONSE" | jq -r '.access_token // empty')
+
+if [ -z "$ACCESS_TOKEN" ]; then
+    print_warning "ROPC grant failed, trying authorization code flow..."
+
+    # Generate PKCE code verifier and challenge
+    CODE_VERIFIER=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 43)
+    CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+
+    # Start auth code flow - get login page URL
+    AUTH_URL="${NETBIRD_URL}/oauth2/auth?client_id=netbird-cli&response_type=code&redirect_uri=http://localhost:53000/&scope=openid+profile+email&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
+
+    # Follow redirects to find the login form action URL
+    AUTH_REDIRECT=$(curl -s -L -o /dev/null -w "%{url_effective}" "$AUTH_URL" 2>/dev/null || true)
+    print_status "Auth redirect: $AUTH_REDIRECT"
+
+    # Extract the request ID from the redirect URL
+    REQ_ID=$(echo "$AUTH_REDIRECT" | grep -oP 'req=\K[^&]+' || echo "")
+
+    if [ -n "$REQ_ID" ]; then
+        # Submit login form
+        LOGIN_RESPONSE=$(curl -s -D - -X POST "${NETBIRD_URL}/oauth2/auth/local" \
+            -d "login=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&back=&state=" \
+            --data-urlencode "req=${REQ_ID}" \
+            -L --max-redirs 0 2>/dev/null || true)
+
+        # Follow the approval redirect to get the code
+        APPROVAL_LOCATION=$(echo "$LOGIN_RESPONSE" | grep -i "^location:" | tail -1 | tr -d '\r' | awk '{print $2}')
+
+        if [ -n "$APPROVAL_LOCATION" ]; then
+            # Follow redirect chain to get the authorization code
+            CALLBACK_URL=$(curl -s -D - -o /dev/null "$APPROVAL_LOCATION" -L --max-redirs 5 2>/dev/null | grep -i "^location:" | grep "localhost:53000" | tail -1 | tr -d '\r' | awk '{print $2}')
+
+            if [ -z "$CALLBACK_URL" ]; then
+                # Try getting code from the approval location directly
+                CALLBACK_URL="$APPROVAL_LOCATION"
+            fi
+
+            AUTH_CODE=$(echo "$CALLBACK_URL" | grep -oP 'code=\K[^&]+' || echo "")
+
+            if [ -n "$AUTH_CODE" ]; then
+                # Exchange code for token
+                JWT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/oauth2/token" \
+                    -H "Content-Type: application/x-www-form-urlencoded" \
+                    -d "grant_type=authorization_code&code=${AUTH_CODE}&redirect_uri=http://localhost:53000/&client_id=netbird-cli&code_verifier=${CODE_VERIFIER}")
+
+                ACCESS_TOKEN=$(echo "$JWT_RESPONSE" | jq -r '.access_token // empty')
+            fi
+        fi
+    fi
+fi
+
+if [ -z "$ACCESS_TOKEN" ]; then
+    print_error "Failed to obtain JWT access token"
+    print_error "JWT response: $JWT_RESPONSE"
     exit 1
 fi
 
-print_success "API token created successfully"
+print_success "JWT access token obtained"
+
+# Step 3: Get user ID if not already known
+if [ -z "$USER_ID" ]; then
+    print_status "Fetching user ID..."
+    USERS_RESPONSE=$(curl -s "${NETBIRD_URL}/api/users" \
+        -H "Authorization: Bearer ${ACCESS_TOKEN}")
+    USER_ID=$(echo "$USERS_RESPONSE" | jq -r '.[0].id // empty')
+
+    if [ -z "$USER_ID" ]; then
+        print_error "Failed to get user ID"
+        print_error "Users response: $USERS_RESPONSE"
+        exit 1
+    fi
+fi
+
+print_status "User ID: $USER_ID"
+
+# Step 4: Create a Personal Access Token (PAT)
+print_status "Creating Personal Access Token..."
+PAT_RESPONSE=$(curl -s -X POST "${NETBIRD_URL}/api/users/${USER_ID}/tokens" \
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"ci-test","expires_in":365}')
+
+PAT=$(echo "$PAT_RESPONSE" | jq -r '.plain_token // empty')
+
+if [ -z "$PAT" ]; then
+    print_error "Failed to create Personal Access Token"
+    print_error "PAT response: $PAT_RESPONSE"
+    exit 1
+fi
+
+print_success "Personal Access Token created successfully"
 
 # Export environment variables
-export NETBIRD_API_URL="http://localhost:8081"
-export NETBIRD_API_TOKEN="$TOKEN"
+export NETBIRD_API_URL="$NETBIRD_URL"
+export NETBIRD_API_TOKEN="$PAT"
 
 # Output for CI (GitHub Actions)
 if [ -n "$GITHUB_ENV" ]; then
-    echo "NETBIRD_API_URL=http://localhost:8081" >> "$GITHUB_ENV"
-    echo "NETBIRD_API_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+    echo "NETBIRD_API_URL=${NETBIRD_URL}" >> "$GITHUB_ENV"
+    echo "NETBIRD_API_TOKEN=${PAT}" >> "$GITHUB_ENV"
 fi
 
 # Output for sourcing in shell
 echo ""
 echo "# Source these environment variables to run integration tests:"
-echo "export NETBIRD_API_URL=http://localhost:8081"
-echo "export NETBIRD_API_TOKEN=$TOKEN"
+echo "export NETBIRD_API_URL=${NETBIRD_URL}"
+echo "export NETBIRD_API_TOKEN=${PAT}"
