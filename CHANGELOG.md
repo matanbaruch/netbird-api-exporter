@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Bugfix
+- Update Go version to 1.25 in CI workflows to match go.mod requirement
+Files modified in this change:
+- Modified: .github/workflows/coverage.yml
+- Modified: .github/workflows/release.yml
+
 ## [0.1.76] - 2026-02-14
 
 

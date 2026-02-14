@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   COVERAGE_THRESHOLD: 80  # Minimum coverage percentage required
 
 jobs:
