@@ -41,7 +41,7 @@ The exporter provides the following metrics:
 | ---------------------------------------- | ----- | ---------------------------------------------------------------------------- | ----------------------------------- |
 | `netbird_peers`                          | Gauge | Total number of NetBird peers                                                | -                                   |
 | `netbird_peers_connected`                | Gauge | Number of connected/disconnected peers                                       | `connected`                         |
-| `netbird_peer_last_seen_timestamp`       | Gauge | Last seen timestamp for each peer                                            | `peer_id`, `peer_name`, `hostname`  |
+| `netbird_peer_last_seen_timestamp`       | Gauge | Last seen timestamp for each peer                                            | `peer_id`, `peer_name`, `hostname`, `user_id`  |
 | `netbird_peers_by_os`                    | Gauge | Number of peers by operating system                                          | `os`                                |
 | `netbird_peers_by_country`               | Gauge | Number of peers by country/city                                              | `country_code`, `city_name`         |
 | `netbird_peers_by_group`                 | Gauge | Number of peers by group                                                     | `group_id`, `group_name`            |
@@ -49,7 +49,7 @@ The exporter provides the following metrics:
 | `netbird_peers_login_expired`            | Gauge | Number of peers with expired/valid login                                     | `login_expired`                     |
 | `netbird_peers_approval_required`        | Gauge | Number of peers requiring/not requiring approval                             | `approval_required`                 |
 | `netbird_peer_accessible_peers_count`    | Gauge | Number of accessible peers for each peer                                     | `peer_id`, `peer_name`              |
-| `netbird_peer_connection_status_by_name` | Gauge | Connection status of each peer by name (1 for connected, 0 for disconnected) | `peer_name`, `peer_id`, `connected` |
+| `netbird_peer_connection_status_by_name` | Gauge | Connection status of each peer by name (1 for connected, 0 for disconnected) | `peer_name`, `peer_id`, `user_id`, `connected` |
 
 ### Group Metrics Table
 

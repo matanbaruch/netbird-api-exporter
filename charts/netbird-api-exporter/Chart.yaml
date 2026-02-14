@@ -4,9 +4,9 @@ description: A Helm chart for NetBird API Exporter - Prometheus exporter for Net
 
 type: application
 
-version: 0.1.76
+version: 0.1.78
 
-appVersion: "0.1.76"
+appVersion: "0.1.78"
 
 icon: https://avatars.githubusercontent.com/u/100464677
 
@@ -59,6 +59,8 @@ annotations:
   artifacthub.io/changes: |
     - kind: fixed
       description: "Update Go version to 1.25 in CI workflows to match go.mod requirement"
+    - kind: added
+      description: "Add user_id label to peer metrics"
     - kind: added
       description: "Use native ARM64 GitHub runner for PR Docker builds instead of QEMU emulation"
     - kind: fixed
