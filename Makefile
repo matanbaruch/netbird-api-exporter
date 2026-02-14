@@ -1,4 +1,4 @@
-.PHONY: build run clean test docker-build docker-run docker-compose-up docker-compose-down setup-precommit install-hooks verify
+.PHONY: build run clean test docker-build docker-run docker-compose-up docker-compose-down setup-precommit install-hooks verify test-integration-setup test-integration-teardown
 
 # Go parameters
 GOCMD=go
@@ -31,9 +31,17 @@ test:
 test-unit:
 	./scripts/run-tests.sh unit
 
-# Run integration tests (requires NETBIRD_API_TOKEN)
+# Run integration tests (auto-starts local NetBird if NETBIRD_API_TOKEN not set)
 test-integration:
 	./scripts/run-tests.sh integration
+
+# Start self-hosted NetBird for integration testing
+test-integration-setup:
+	./scripts/setup-test-netbird.sh
+
+# Stop self-hosted NetBird after integration testing
+test-integration-teardown:
+	./scripts/teardown-test-netbird.sh
 
 # Run performance tests
 test-performance:
@@ -193,7 +201,9 @@ help:
 	@echo "  clean           - Clean build artifacts"
 	@echo "  test            - Run tests"
 	@echo "  test-unit       - Run unit tests only"
-	@echo "  test-integration - Run integration tests (requires NETBIRD_API_TOKEN)"
+	@echo "  test-integration - Run integration tests (auto-starts local NetBird)"
+	@echo "  test-integration-setup - Start self-hosted NetBird for testing"
+	@echo "  test-integration-teardown - Stop self-hosted NetBird"
 	@echo "  test-performance - Run performance tests"
 	@echo "  test-benchmark  - Run benchmark tests"
 	@echo "  test-all        - Run all tests with coverage"
