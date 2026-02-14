@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+### Bugfix
+- Fix unit tests making real API calls to api.netbird.io causing 30s timeouts
+Files modified in this change:
+- Modified: pkg/exporters/dns_test.go
+- Modified: pkg/exporters/groups_test.go
+- Modified: pkg/exporters/networks_test.go
+- Modified: pkg/exporters/peers_test.go
+- Modified: pkg/exporters/users_test.go
+
+## [0.1.74] - 2026-02-14
+
+
 ### Features
 - Replace cloud API token dependency with self-hosted NetBird for integration testing, enabling all contributors to run the full test suite without secrets
 Files modified in this change:

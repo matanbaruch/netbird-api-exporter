@@ -326,7 +326,7 @@ func TestUsersExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.usersTotal, exporter.usersByRole, exporter.usersByStatus, exporter.usersServiceUsers, exporter.usersBlocked, exporter.usersByIssued, exporter.usersLastLogin, exporter.usersAutoGroupsCount, exporter.usersRestricted, exporter.usersPermissions)
 
 	families, err := registry.Gather()
 	if err != nil {
@@ -364,7 +364,7 @@ func TestUsersExporter_MetricsReset(t *testing.T) {
 
 	// Collect and verify metrics are reset
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter)
+	registry.MustRegister(exporter.usersTotal, exporter.usersByRole, exporter.usersByStatus, exporter.usersServiceUsers, exporter.usersBlocked, exporter.usersByIssued, exporter.usersLastLogin, exporter.usersAutoGroupsCount, exporter.usersRestricted, exporter.usersPermissions)
 
 	families, err := registry.Gather()
 	if err != nil {
