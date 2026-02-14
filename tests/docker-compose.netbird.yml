@@ -1,0 +1,20 @@
+services:
+  netbird-server:
+    image: netbirdio/netbird-server:latest
+    container_name: netbird-server
+    restart: "no"
+    ports:
+      - "8081:80"
+      - "3478:3478/udp"
+    volumes:
+      - ./config.yaml:/etc/netbird/config.yaml:ro
+      - netbird-data:/var/lib/netbird
+    command: ["--config", "/etc/netbird/config.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/oauth2/.well-known/openid-configuration"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  netbird-data:
