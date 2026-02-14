@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.75] - 2026-02-14
+
 
 ### Bugfix
 - Fix unit tests making real API calls to api.netbird.io causing 30s timeouts
