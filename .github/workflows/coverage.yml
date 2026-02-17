@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   COVERAGE_THRESHOLD: 80  # Minimum coverage percentage required
 
 jobs:
@@ -51,7 +51,6 @@ jobs:
       run: |
         go mod download
         go mod verify
-        go mod tidy
 
     - name: Run tests with coverage
       run: |
@@ -187,9 +186,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Download dependencies
-      run: |
-        go mod download
-        go mod tidy
+      run: go mod download
 
     - name: Make scripts executable
       run: chmod +x scripts/setup-test-netbird.sh scripts/teardown-test-netbird.sh
@@ -227,9 +224,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Download dependencies
-      run: |
-        go mod download
-        go mod tidy
+      run: go mod download
 
     - name: Run performance tests
       run: |
