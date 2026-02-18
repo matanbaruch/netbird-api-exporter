@@ -614,19 +614,8 @@ The project includes GitHub Actions workflows that automatically:
 
 - Run linting checks on all pull requests
 - Verify code formatting
-- Run tests
+- Run tests (using self-hosted NetBird instance)
 - Check for security issues
-
-#### External Contributor Testing
-
-For external contributors (from forks), we have a secure testing system:
-
-- **Basic tests run automatically** - Unit tests, linting, Docker builds (no secrets required)
-- **Integration tests require approval** - Tests with secrets need maintainer approval
-- **Easy approval process** - Maintainers can approve by commenting `/approve`
-- **Security-first approach** - Manual review required before accessing secrets
-
-See [External PR Testing Guide](docs/security/external-pr-testing.md) for details.
 
 ### Running Tests
 
