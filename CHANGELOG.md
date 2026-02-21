@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Bugfix
+- Update Ruby version requirement to 3.2 for nokogiri 1.19.1 compatibility
+Files modified in this change:
+- Modified: .github/workflows/docs.yml
+- Modified: docs/Gemfile
+
 ## [0.1.79] - 2026-02-17
 
 
