@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.80] - 2026-02-21
+
 
 ### Bugfix
 - Update Ruby version requirement to 3.2 for nokogiri 1.19.1 compatibility
