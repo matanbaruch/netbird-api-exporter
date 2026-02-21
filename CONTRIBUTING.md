@@ -24,7 +24,7 @@ This project follows a code of conduct to ensure a welcoming environment for all
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 - Docker and Docker Compose (for containerized development)
 - Git
 - Make (for using the Makefile commands)
