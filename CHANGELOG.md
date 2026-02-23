@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Add exporters for Accounts, Setup Keys, Policies, Routes, Posture Checks, DNS Zones, Tokens (opt-in), and Events (opt-in) APIs
+Files modified in this change:
+- Modified: env.example
+- Modified: main.go
+- Modified: pkg/exporters/exporter.go
+- New: pkg/exporters/accounts.go
+- New: pkg/exporters/dns_zones.go
+- New: pkg/exporters/events.go
+- New: pkg/exporters/policies.go
+- New: pkg/exporters/posture_checks.go
+- New: pkg/exporters/routes.go
+- New: pkg/exporters/setup_keys.go
+- New: pkg/exporters/tokens.go
+
 ## [0.1.80] - 2026-02-21
 
 

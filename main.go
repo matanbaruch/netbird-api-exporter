@@ -159,6 +159,14 @@ func main() {
 		<li><strong>Users API:</strong> User counts, roles, status, permissions</li>
 		<li><strong>DNS API:</strong> Nameserver groups, DNS settings, nameserver configurations</li>
 		<li><strong>Networks API:</strong> Network counts, routers, resources, policies, routing peers</li>
+		<li><strong>Accounts API:</strong> Account information and settings</li>
+		<li><strong>Setup Keys API:</strong> Setup key status, usage, and expiration</li>
+		<li><strong>Policies API:</strong> Access control policies and rules</li>
+		<li><strong>Routes API:</strong> Network routes and routing configuration</li>
+		<li><strong>Posture Checks API:</strong> Device compliance checks</li>
+		<li><strong>DNS Zones API:</strong> DNS zones and records</li>
+		<li><strong>Tokens API (opt-in):</strong> Personal access tokens (enable via ENABLE_TOKENS_EXPORTER=true)</li>
+		<li><strong>Events API (opt-in):</strong> Audit logs and activity events (enable via ENABLE_EVENTS_EXPORTER=true)</li>
 		</ul>
 		</body>
 		</html>

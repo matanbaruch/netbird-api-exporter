@@ -365,3 +365,166 @@ func TestIntegration_MetricsAccuracy(t *testing.T) {
 	t.Logf("First collection: %d metrics, Second collection: %d metrics",
 		len(firstCollection), len(secondCollection))
 }
+func TestIntegration_AccountsExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewAccountsExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from accounts exporter", metricCount)
+}
+
+func TestIntegration_SetupKeysExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewSetupKeysExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from setup keys exporter", metricCount)
+}
+
+func TestIntegration_PoliciesExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewPoliciesExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from policies exporter", metricCount)
+}
+
+func TestIntegration_RoutesExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewRoutesExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from routes exporter", metricCount)
+}
+
+func TestIntegration_PostureChecksExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewPostureChecksExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from posture checks exporter", metricCount)
+}
+
+func TestIntegration_DNSZonesExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+	exporter := exporters.NewDNSZonesExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	t.Logf("Collected %d metrics from DNS zones exporter", metricCount)
+}
+
+func TestIntegration_TokensExporter_Disabled(t *testing.T) {
+	// Ensure tokens exporter is disabled by default
+	client := getTestClient(t)
+	exporter := exporters.NewTokensExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	// Should return 0 metrics when disabled
+	if metricCount != 0 {
+		t.Errorf("Expected 0 metrics from disabled tokens exporter, got %d", metricCount)
+	}
+
+	t.Logf("Tokens exporter correctly disabled (0 metrics)")
+}
+
+func TestIntegration_EventsExporter_Disabled(t *testing.T) {
+	// Ensure events exporter is disabled by default
+	client := getTestClient(t)
+	exporter := exporters.NewEventsExporter(client)
+
+	// Collect metrics
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		exporter.Collect(metricsCh)
+	}()
+
+	metricCount := 0
+	for range metricsCh {
+		metricCount++
+	}
+
+	// Should return 0 metrics when disabled
+	if metricCount != 0 {
+		t.Errorf("Expected 0 metrics from disabled events exporter, got %d", metricCount)
+	}
+
+	t.Logf("Events exporter correctly disabled (0 metrics)")
+}

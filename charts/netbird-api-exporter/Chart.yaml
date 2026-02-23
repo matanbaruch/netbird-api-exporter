@@ -57,6 +57,8 @@ annotations:
     - title: NetBird API Exporter Dashboard
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
+    - kind: added
+      description: "Add exporters for Accounts, Setup Keys, Policies, Routes, Posture Checks, DNS Zones, Tokens (opt-in), and Events (opt-in) APIs"
     - kind: fixed
       description: "Update Ruby version requirement to 3.2 for nokogiri 1.19.1 compatibility"
     - kind: fixed
