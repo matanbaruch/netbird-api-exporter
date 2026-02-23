@@ -24,14 +24,15 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates wget
 
 # Create app directory with proper permissions for nobody user
-RUN mkdir -p /app && \
-    chown -R 65534:65534 /app
+RUN mkdir -p /app /tmp/app-temp && \
+    chown -R 65534:65534 /app /tmp/app-temp && \
+    chmod 750 /app /tmp/app-temp
 
 WORKDIR /app
 
 # Copy the binary from builder and set permissions
 COPY --from=builder --chown=65534:65534 /app/netbird-api-exporter .
-RUN chmod +x netbird-api-exporter
+RUN chmod 550 netbird-api-exporter
 
 # Switch to non-root user (nobody)
 USER 65534

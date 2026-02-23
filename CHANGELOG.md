@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Security
+- Improve Docker security with stricter file permissions (550 for binary, 750 for directories) and dedicated temp directory
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: Dockerfile
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Modified: main.go
+- Modified: pkg/exporters/exporter.go
+- New: pkg/utils/sanitize.go
+- New: pkg/utils/sanitize_test.go
+- Enhance panic recovery to prevent sensitive information leakage by truncating panic messages
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: Dockerfile
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Modified: main.go
+- Modified: pkg/exporters/exporter.go
+- New: pkg/utils/sanitize.go
+- New: pkg/utils/sanitize_test.go
+- Implement input validation and sanitization for Prometheus metric labels to prevent injection attacks and cardinality explosion
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: Dockerfile
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Modified: main.go
+- Modified: pkg/exporters/exporter.go
+- New: pkg/utils/sanitize.go
+- New: pkg/utils/sanitize_test.go
+- Add HTTP security headers middleware (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Cache-Control)
+Files modified in this change:
+- Modified: Dockerfile
+- Modified: main.go
+- Modified: pkg/exporters/exporter.go
+- New: pkg/utils/sanitize.go
+- New: pkg/utils/sanitize_test.go
+
 ## [0.1.80] - 2026-02-21
 
 

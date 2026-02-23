@@ -57,6 +57,14 @@ annotations:
     - title: NetBird API Exporter Dashboard
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
+    - kind: security
+      description: "Improve Docker security with stricter file permissions (550 for binary, 750 for directories) and dedicated temp directory"
+    - kind: security
+      description: "Enhance panic recovery to prevent sensitive information leakage by truncating panic messages"
+    - kind: security
+      description: "Implement input validation and sanitization for Prometheus metric labels to prevent injection attacks and cardinality explosion"
+    - kind: security
+      description: "Add HTTP security headers middleware (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Cache-Control)"
     - kind: fixed
       description: "Update Ruby version requirement to 3.2 for nokogiri 1.19.1 compatibility"
     - kind: fixed

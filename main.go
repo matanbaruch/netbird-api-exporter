@@ -17,6 +17,29 @@ import (
 	"github.com/matanbaruch/netbird-api-exporter/pkg/utils"
 )
 
+// securityHeadersMiddleware adds security headers to all HTTP responses
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// Prevent clickjacking attacks
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// Enable XSS protection in older browsers
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		// Prevent caching of sensitive endpoints
+		if r.URL.Path == "/metrics" || r.URL.Path == "/health" {
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // debugLoggingMiddleware logs HTTP requests when debug level is enabled
 func debugLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,10 +142,11 @@ func main() {
 	// Create HTTP server
 	mux := http.NewServeMux()
 
-	// Debug logging middleware
+	// Build middleware chain: security headers first, then debug logging
 	var handler http.Handler = mux
+	handler = securityHeadersMiddleware(handler)
 	if logrus.GetLevel() == logrus.DebugLevel {
-		handler = debugLoggingMiddleware(mux)
+		handler = debugLoggingMiddleware(handler)
 	}
 
 	// Metrics endpoint

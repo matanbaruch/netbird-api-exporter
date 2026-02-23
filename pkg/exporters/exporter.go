@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -8,6 +9,25 @@ import (
 
 	nbclient "github.com/netbirdio/netbird/shared/management/client/rest"
 )
+
+// sanitizePanicValue returns a safe string representation of a panic value
+// without exposing sensitive information
+func sanitizePanicValue(r interface{}) string {
+	if r == nil {
+		return "unknown panic"
+	}
+
+	// Convert to string but truncate to prevent information leakage
+	panicStr := fmt.Sprintf("%v", r)
+
+	// Limit length to prevent excessive logging
+	maxLen := 200
+	if len(panicStr) > maxLen {
+		panicStr = panicStr[:maxLen] + "... (truncated)"
+	}
+
+	return panicStr
+}
 
 // NetBirdExporter represents the main Prometheus exporter for NetBird APIs
 type NetBirdExporter struct {
@@ -80,7 +100,7 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.WithField("panic", r).Error("Panic during peers collection")
+				logrus.WithField("panic", sanitizePanicValue(r)).Error("Panic during peers collection")
 				e.scrapeErrors.Inc()
 			}
 		}()
@@ -92,7 +112,7 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.WithField("panic", r).Error("Panic during groups collection")
+				logrus.WithField("panic", sanitizePanicValue(r)).Error("Panic during groups collection")
 				e.scrapeErrors.Inc()
 			}
 		}()
@@ -104,7 +124,7 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.WithField("panic", r).Error("Panic during users collection")
+				logrus.WithField("panic", sanitizePanicValue(r)).Error("Panic during users collection")
 				e.scrapeErrors.Inc()
 			}
 		}()
@@ -116,7 +136,7 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.WithField("panic", r).Error("Panic during dns collection")
+				logrus.WithField("panic", sanitizePanicValue(r)).Error("Panic during dns collection")
 				e.scrapeErrors.Inc()
 			}
 		}()
@@ -128,7 +148,7 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logrus.WithField("panic", r).Error("Panic during networks collection")
+				logrus.WithField("panic", sanitizePanicValue(r)).Error("Panic during networks collection")
 				e.scrapeErrors.Inc()
 			}
 		}()
