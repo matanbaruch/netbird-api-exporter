@@ -130,6 +130,34 @@ The exporter is configured via environment variables:
 1. Create a new service user with PAT with appropriate permissions. See docs: [NetBird Service Users Guide](https://docs.netbird.io/how-to/access-netbird-public-api#creating-a-service-user).
 2. Copy the token and use it as `NETBIRD_API_TOKEN`
 
+## Security Considerations
+
+⚠️ **IMPORTANT**: Before deploying to production, please review the security documentation:
+
+- **[Production Deployment Security Guide](docs/DEPLOYMENT_SECURITY.md)** - Comprehensive security best practices for production deployments
+- **[Security Policy](SECURITY.md)** - Vulnerability reporting and security features
+
+### Key Security Points
+
+1. **Metrics Endpoint Authentication**: The `/metrics` endpoint has NO built-in authentication. You MUST protect it using:
+   - Network policies (Kubernetes NetworkPolicy)
+   - Reverse proxy with authentication (nginx, Traefik)
+   - Mutual TLS (mTLS)
+
+2. **TLS/HTTPS**: The exporter does not natively support HTTPS. Deploy behind a TLS-terminating reverse proxy or use Kubernetes Ingress with TLS.
+
+3. **Secret Management**: Store the `NETBIRD_API_TOKEN` securely using:
+   - Kubernetes Secrets
+   - HashiCorp Vault
+   - AWS Secrets Manager
+   - Other secrets management systems
+
+4. **Production Logging**: Never use `LOG_LEVEL=debug` in production as it exposes sensitive information.
+
+5. **Container Security**: The Docker image runs as non-root user (UID 65534) and should be deployed with additional security contexts.
+
+For detailed configuration examples and security hardening steps, see the [Production Deployment Security Guide](docs/DEPLOYMENT_SECURITY.md).
+
 ## Installation & Usage
 
 ### Option 1: Docker Compose (Recommended)

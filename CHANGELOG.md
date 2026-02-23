@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+
+### Features
+- Add comprehensive production deployment security guide with examples for authentication, TLS, network policies, and secret management
+Files modified in this change:
+- Modified: README.md
+- New: docs/DEPLOYMENT_SECURITY.md
+
 ### Security
 - Improve Docker security with stricter file permissions (550 for binary, 750 for directories) and dedicated temp directory
 Files modified in this change:
