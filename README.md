@@ -29,7 +29,21 @@
 
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/netbird-api-exporter)](https://artifacthub.io/packages/search?repo=netbird-api-exporter)
 
-A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird network peers, groups, users, networks, and DNS configuration. This exporter fetches data from the [NetBird REST API](https://docs.netbird.io/ipa/resources/peers), [Groups API](https://docs.netbird.io/ipa/resources/groups), [Users API](https://docs.netbird.io/ipa/resources/users), [Networks API](https://docs.netbird.io/ipa/resources/networks), and [DNS API](https://docs.netbird.io/ipa/resources/dns) and exposes it in Prometheus format.
+A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird deployment. This exporter fetches data from the NetBird REST API including:
+
+- [Peers API](https://docs.netbird.io/api/resources/peers) - Network peer metrics
+- [Groups API](https://docs.netbird.io/api/resources/groups) - Group membership
+- [Users API](https://docs.netbird.io/api/resources/users) - User management
+- [Networks API](https://docs.netbird.io/api/resources/networks) - Network configuration
+- [DNS API](https://docs.netbird.io/api/resources/dns) - DNS settings
+- [Accounts API](https://docs.netbird.io/api/resources/accounts) - Account information
+- [Setup Keys API](https://docs.netbird.io/api/resources/setup-keys) - Device onboarding
+- [Policies API](https://docs.netbird.io/api/resources/policies) - Access policies
+- [Routes API](https://docs.netbird.io/api/resources/routes) - Network routing
+- [Posture Checks API](https://docs.netbird.io/api/resources/posture-checks) - Device compliance
+- [DNS Zones API](https://docs.netbird.io/api/resources/dns-zones) - DNS zone management
+- [Tokens API](https://docs.netbird.io/api/resources/tokens) - Personal access tokens (opt-in)
+- [Events API](https://docs.netbird.io/api/resources/events) - Audit logs (opt-in)
 
 ## Metrics Overview
 
@@ -92,6 +106,102 @@ The exporter provides the following metrics:
 | `netbird_dns_nameservers_by_type`              | Gauge | Number of nameservers by type (UDP/TCP)               | `ns_type`                |
 | `netbird_dns_nameservers_by_port`              | Gauge | Number of nameservers by port                         | `port`                   |
 | `netbird_dns_management_disabled_groups_count` | Gauge | Number of groups with DNS management disabled         | -                        |
+### Accounts Metrics Table
+
+| Metric Name                            | Type      | Description                                                   | Labels                                           |
+| -------------------------------------- | --------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| `netbird_account_info`                 | Gauge     | Information about the NetBird account (always 1)              | `account_id`, `domain`, `domain_category`, `created_by` |
+| `netbird_account_created_at_timestamp` | Gauge     | Unix timestamp when the account was created                   | `account_id`, `domain`                           |
+| `netbird_accounts_scrape_errors_total` | Counter   | Total number of errors encountered while scraping accounts    | `error_type`                                     |
+| `netbird_accounts_scrape_duration_seconds` | Histogram | Time spent scraping accounts from the NetBird API         | -                                                |
+
+### Setup Keys Metrics Table
+
+| Metric Name                               | Type      | Description                                                     | Labels                                                      |
+| ----------------------------------------- | --------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| `netbird_setup_keys`                      | Gauge     | Total number of NetBird setup keys                              | -                                                           |
+| `netbird_setup_keys_by_type`              | Gauge     | Number of NetBird setup keys by type (one-off or reusable)      | `type`                                                      |
+| `netbird_setup_keys_by_state`             | Gauge     | Number of NetBird setup keys by state (valid, expired, overused, revoked) | `state`                                          |
+| `netbird_setup_key_info`                  | Gauge     | Information about NetBird setup keys (always 1)                 | `key_id`, `key_name`, `type`, `state`, `valid`, `revoked`, `ephemeral` |
+| `netbird_setup_key_used_times`            | Gauge     | Number of times a setup key has been used                       | `key_id`, `key_name`                                        |
+| `netbird_setup_key_usage_limit`           | Gauge     | Usage limit for a setup key (0 = unlimited)                     | `key_id`, `key_name`                                        |
+| `netbird_setup_key_expires_at_timestamp`  | Gauge     | Unix timestamp when the setup key expires                       | `key_id`, `key_name`                                        |
+| `netbird_setup_key_last_used_timestamp`   | Gauge     | Unix timestamp when the setup key was last used                 | `key_id`, `key_name`                                        |
+| `netbird_setup_keys_scrape_errors_total`  | Counter   | Total number of errors encountered while scraping setup keys    | `error_type`                                                |
+| `netbird_setup_keys_scrape_duration_seconds` | Histogram | Time spent scraping setup keys from the NetBird API          | -                                                           |
+
+### Policies Metrics Table
+
+| Metric Name                               | Type      | Description                                                     | Labels                          |
+| ----------------------------------------- | --------- | --------------------------------------------------------------- | ------------------------------- |
+| `netbird_policies`                        | Gauge     | Total number of NetBird policies                                | -                               |
+| `netbird_policies_by_status`              | Gauge     | Number of NetBird policies by status (enabled/disabled)         | `enabled`                       |
+| `netbird_policy_info`                     | Gauge     | Information about NetBird policies (always 1)                   | `policy_id`, `policy_name`, `enabled` |
+| `netbird_policy_rules_count`              | Gauge     | Number of rules in each NetBird policy                          | `policy_id`, `policy_name`      |
+| `netbird_policy_posture_checks_count`     | Gauge     | Number of source posture checks in each NetBird policy          | `policy_id`, `policy_name`      |
+| `netbird_policies_scrape_errors_total`    | Counter   | Total number of errors encountered while scraping policies      | `error_type`                    |
+| `netbird_policies_scrape_duration_seconds` | Histogram | Time spent scraping policies from the NetBird API              | -                               |
+
+### Routes Metrics Table
+
+| Metric Name                              | Type      | Description                                                    | Labels                                                       |
+| ---------------------------------------- | --------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `netbird_routes`                         | Gauge     | Total number of NetBird routes                                 | -                                                            |
+| `netbird_routes_by_status`               | Gauge     | Number of NetBird routes by status (enabled/disabled)          | `enabled`                                                    |
+| `netbird_routes_by_network_type`         | Gauge     | Number of NetBird routes by network type                       | `network_type`                                               |
+| `netbird_route_info`                     | Gauge     | Information about NetBird routes (always 1)                    | `route_id`, `network_id`, `network_type`, `enabled`, `masquerade`, `keep_route` |
+| `netbird_route_metric_value`             | Gauge     | Metric value for NetBird route (lower = higher priority)       | `route_id`, `network_id`                                     |
+| `netbird_route_groups_count`             | Gauge     | Number of peer groups associated with each NetBird route       | `route_id`, `network_id`                                     |
+| `netbird_routes_scrape_errors_total`     | Counter   | Total number of errors encountered while scraping routes       | `error_type`                                                 |
+| `netbird_routes_scrape_duration_seconds` | Histogram | Time spent scraping routes from the NetBird API                | -                                                            |
+
+### Posture Checks Metrics Table
+
+| Metric Name                                      | Type      | Description                                                           | Labels                     |
+| ------------------------------------------------ | --------- | --------------------------------------------------------------------- | -------------------------- |
+| `netbird_posture_checks`                         | Gauge     | Total number of NetBird posture checks                                | -                          |
+| `netbird_posture_check_info`                     | Gauge     | Information about NetBird posture checks (always 1)                   | `check_id`, `check_name`   |
+| `netbird_posture_checks_scrape_errors_total`     | Counter   | Total number of errors encountered while scraping posture checks      | `error_type`               |
+| `netbird_posture_checks_scrape_duration_seconds` | Histogram | Time spent scraping posture checks from the NetBird API               | -                          |
+
+### DNS Zones Metrics Table
+
+| Metric Name                                   | Type      | Description                                                       | Labels                               |
+| --------------------------------------------- | --------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `netbird_dns_zones`                           | Gauge     | Total number of NetBird DNS zones                                 | -                                    |
+| `netbird_dns_zone_info`                       | Gauge     | Information about NetBird DNS zones (always 1)                    | `zone_id`, `zone_name`, `domain`, `enabled` |
+| `netbird_dns_zone_records_count`              | Gauge     | Number of DNS records in each NetBird DNS zone                    | `zone_id`, `zone_name`               |
+| `netbird_dns_zones_scrape_errors_total`       | Counter   | Total number of errors encountered while scraping DNS zones       | `error_type`                         |
+| `netbird_dns_zones_scrape_duration_seconds`   | Histogram | Time spent scraping DNS zones from the NetBird API                | -                                    |
+
+### Tokens Metrics Table (Opt-in)
+
+> **Note:** This exporter is disabled by default due to high cardinality. Enable with `ENABLE_TOKENS_EXPORTER=true`
+
+| Metric Name                                | Type      | Description                                                      | Labels                              |
+| ------------------------------------------ | --------- | ---------------------------------------------------------------- | ----------------------------------- |
+| `netbird_tokens`                           | Gauge     | Total number of NetBird personal access tokens across all users  | -                                   |
+| `netbird_tokens_by_user`                   | Gauge     | Number of personal access tokens per user                        | `user_id`                           |
+| `netbird_token_info`                       | Gauge     | Information about NetBird personal access tokens (always 1)      | `token_id`, `token_name`, `user_id` |
+| `netbird_token_expires_at_timestamp`       | Gauge     | Unix timestamp when the personal access token expires            | `token_id`, `token_name`, `user_id` |
+| `netbird_token_last_used_timestamp`        | Gauge     | Unix timestamp when the personal access token was last used      | `token_id`, `token_name`, `user_id` |
+| `netbird_tokens_scrape_errors_total`       | Counter   | Total number of errors encountered while scraping tokens         | `error_type`                        |
+| `netbird_tokens_scrape_duration_seconds`   | Histogram | Time spent scraping tokens from the NetBird API                  | -                                   |
+
+### Events Metrics Table (Opt-in)
+
+> **Note:** This exporter is disabled by default due to **very high cardinality**. Enable with `ENABLE_EVENTS_EXPORTER=true`. Use with caution in production.
+
+| Metric Name                               | Type      | Description                                                     | Labels                                                                 |
+| ----------------------------------------- | --------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `netbird_events`                          | Gauge     | Total number of NetBird events retrieved                        | -                                                                      |
+| `netbird_events_by_activity`              | Gauge     | Number of NetBird events by activity type                       | `activity_code`                                                        |
+| `netbird_event_info`                      | Gauge     | Information about NetBird events (always 1)                     | `event_id`, `activity`, `activity_code`, `initiator_id`, `initiator_email`, `target_id` |
+| `netbird_event_timestamp`                 | Gauge     | Unix timestamp when the event occurred                          | `event_id`, `activity_code`                                            |
+| `netbird_events_scrape_errors_total`      | Counter   | Total number of errors encountered while scraping events        | `error_type`                                                           |
+| `netbird_events_scrape_duration_seconds`  | Histogram | Time spent scraping events from the NetBird API                 | -                                                                      |
+
+
 
 ### Network Metrics Table
 
@@ -117,13 +227,15 @@ The exporter provides the following metrics:
 
 The exporter is configured via environment variables:
 
-| Variable            | Default                  | Required | Description                          |
-| ------------------- | ------------------------ | -------- | ------------------------------------ |
-| `NETBIRD_API_URL`   | `https://api.netbird.io` | No       | NetBird API base URL                 |
-| `NETBIRD_API_TOKEN` | -                        | **Yes**  | NetBird API authentication token     |
-| `LISTEN_ADDRESS`    | `:8080`                  | No       | Address and port to listen on        |
-| `METRICS_PATH`      | `/metrics`               | No       | Path where metrics are exposed       |
-| `LOG_LEVEL`         | `info`                   | No       | Log level (debug, info, warn, error) |
+| Variable                    | Default                  | Required | Description                                              |
+| --------------------------- | ------------------------ | -------- | -------------------------------------------------------- |
+| `NETBIRD_API_URL`           | `https://api.netbird.io` | No       | NetBird API base URL                                     |
+| `NETBIRD_API_TOKEN`         | -                        | **Yes**  | NetBird API authentication token                         |
+| `LISTEN_ADDRESS`            | `:8080`                  | No       | Address and port to listen on                            |
+| `METRICS_PATH`              | `/metrics`               | No       | Path where metrics are exposed                           |
+| `LOG_LEVEL`                 | `info`                   | No       | Log level (debug, info, warn, error)                     |
+| `ENABLE_TOKENS_EXPORTER`    | `false`                  | No       | Enable personal access tokens metrics (high cardinality) |
+| `ENABLE_EVENTS_EXPORTER`    | `false`                  | No       | Enable events/audit log metrics (very high cardinality)  |
 
 ## Getting Your NetBird API Token
 
