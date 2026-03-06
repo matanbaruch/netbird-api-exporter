@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Bump github.com/netbirdio/netbird from 0.65.3 to 0.66.0
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Bump actions/upload-artifact from 6 to 7
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Bump actions/download-artifact from 7 to 8
+Files modified in this change:
+- Modified: CHANGELOG.md
+- Modified: charts/netbird-api-exporter/Chart.yaml
+- Bump actions/attest-build-provenance from 3 to 4
+
 ## [0.1.81] - 2026-03-02
 
 ## [0.1.80] - 2026-02-21
