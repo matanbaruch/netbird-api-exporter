@@ -101,7 +101,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Attest Docker image
-      uses: actions/attest-build-provenance@v3
+      uses: actions/attest-build-provenance@v4
       with:
         subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         subject-digest: ${{ steps.build.outputs.digest }}
@@ -137,12 +137,12 @@ jobs:
         cat checksums.txt
 
     - name: Attest binary artifacts
-      uses: actions/attest-build-provenance@v3
+      uses: actions/attest-build-provenance@v4
       with:
         subject-path: 'bin/*'
 
     - name: Upload binaries as artifacts
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: netbird-api-exporter-binaries-${{ needs.prepare-version.outputs.new_version }}
         path: |
