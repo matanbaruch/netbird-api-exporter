@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.82] - 2026-03-07
+
 
 ### Features
 - Bump github.com/netbirdio/netbird from 0.65.3 to 0.66.0
