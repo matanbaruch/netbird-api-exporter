@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Configure Dependabot to group all updates by ecosystem into single PRs
+Files modified in this change:
+- Modified: .github/dependabot.yml
+
 ## [0.1.82] - 2026-03-07
 
 

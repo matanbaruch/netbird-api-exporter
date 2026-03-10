@@ -58,6 +58,8 @@ annotations:
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
     - kind: added
+      description: "Configure Dependabot to group all updates by ecosystem into single PRs"
+    - kind: added
       description: "Bump github.com/netbirdio/netbird from 0.65.3 to 0.66.0"
     - kind: added
       description: "Bump actions/upload-artifact from 6 to 7"

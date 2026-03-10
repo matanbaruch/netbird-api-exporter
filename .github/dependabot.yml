@@ -13,6 +13,10 @@ updates:
     labels:
       - "dependencies"
       - "go"
+    groups:
+      gomod:
+        patterns:
+          - "*"
 
   # Monitor Docker base images
   - package-ecosystem: "docker"
@@ -26,6 +30,10 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      docker:
+        patterns:
+          - "*"
 
   # Monitor GitHub Actions
   - package-ecosystem: "github-actions"
@@ -38,4 +46,8 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
-      - "github-actions" 
+      - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*" 
