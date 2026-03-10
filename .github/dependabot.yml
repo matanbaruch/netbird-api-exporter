@@ -50,4 +50,4 @@ updates:
     groups:
       github-actions:
         patterns:
-          - "*" 
+          - "*"
