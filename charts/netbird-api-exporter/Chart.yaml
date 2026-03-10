@@ -60,6 +60,8 @@ annotations:
     - kind: fixed
       description: "Fix flaky Helm chart tests caused by network unreachability, premature test pod deployment, and port-forward race condition"
     - kind: added
+      description: "Configure Dependabot to group all updates by ecosystem into single PRs"
+    - kind: added
       description: "Bump github.com/netbirdio/netbird from 0.65.3 to 0.66.0"
     - kind: added
       description: "Bump actions/upload-artifact from 6 to 7"

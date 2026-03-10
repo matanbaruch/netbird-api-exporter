@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+### Features
+- Configure Dependabot to group all updates by ecosystem into single PRs
+Files modified in this change:
+- Modified: .github/dependabot.yml
+
 ### Bugfix
 - Fix flaky Helm chart tests caused by network unreachability, premature test pod deployment, and port-forward race condition
 Files modified in this change:
