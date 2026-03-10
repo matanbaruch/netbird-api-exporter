@@ -398,49 +398,44 @@ jobs:
         with:
           cluster_name: netbird-test
 
+      - name: Connect kind network to NetBird
+        run: |
+          # Get the Docker bridge gateway IP so pods inside kind can reach
+          # the NetBird container running on the host's Docker network.
+          DOCKER_BRIDGE_IP=$(docker network inspect bridge -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
+          echo "Docker bridge IP: ${DOCKER_BRIDGE_IP}"
+          echo "DOCKER_BRIDGE_IP=${DOCKER_BRIDGE_IP}" >> "$GITHUB_ENV"
+
       - name: Build Docker image
         run: |
           docker build -t netbird-api-exporter:test .
           kind load docker-image netbird-api-exporter:test --name netbird-test
 
-      - name: Create values override file
-        run: |
-          cat > test-values.yaml << EOF
-          image:
-            repository: netbird-api-exporter
-            tag: test
-            pullPolicy: Never
-          netbird:
-            apiToken: "${NETBIRD_API_TOKEN}"
-            apiUrl: "${NETBIRD_API_URL}"
-          EOF
-
       - uses: azure/setup-helm@v4
         with:
            version: 'v3.18.3'
 
-      - name: Bake helm chart
-        uses: azure/k8s-bake@v3
-        with:
-          renderEngine: "helm"
-          helmChart: "./charts/netbird-api-exporter/"
-          overrideFiles: "test-values.yaml"
-          releaseName: "netbird-test"
-          # helm-version: "v3.18.3"
-        id: bake
-
-      - name: Deploy to kind cluster
-        uses: Azure/k8s-deploy@v5
-        with:
-          action: deploy
-          manifests: ${{ steps.bake.outputs.manifestsBundle }}
-          namespace: default
-
-      - name: Wait for deployment
+      - name: Install Helm chart
         run: |
-          kubectl wait --for=condition=available --timeout=300s deployment/netbird-test-netbird-api-exporter
+          # Use the Docker bridge IP so the pod inside kind can reach
+          # the NetBird server running on the host's Docker network.
+          NETBIRD_API_URL_FOR_KIND="http://${DOCKER_BRIDGE_IP}:8081"
+          echo "Using API URL for kind: ${NETBIRD_API_URL_FOR_KIND}"
+
+          helm install netbird-test ./charts/netbird-api-exporter/ \
+            --set image.repository=netbird-api-exporter \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --set netbird.apiToken="${NETBIRD_API_TOKEN}" \
+            --set netbird.apiUrl="${NETBIRD_API_URL_FOR_KIND}" \
+            --wait \
+            --timeout 5m
+
+      - name: Run Helm tests
+        run: helm test netbird-test --timeout 2m
 
       - name: Check pod status and logs
+        if: always()
         run: |
           echo "=== Pod Status ==="
           kubectl get pods -l app.kubernetes.io/name=netbird-api-exporter
@@ -460,11 +455,25 @@ jobs:
       - name: Test metrics endpoint
         run: |
           kubectl port-forward deployment/netbird-test-netbird-api-exporter 8080:8080 &
-          sleep 5
-          curl -s http://localhost:8080/metrics
-          pkill -f "kubectl port-forward" || true
+          PF_PID=$!
+
+          # Wait for port-forward to be ready with retries
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8080/metrics > /dev/null 2>&1; then
+              echo "Port-forward ready after attempt $i"
+              curl -s http://localhost:8080/metrics
+              kill $PF_PID 2>/dev/null || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Failed to reach metrics endpoint after 15 attempts"
+          kill $PF_PID 2>/dev/null || true
+          exit 1
 
       - name: Check deployment status
+        if: always()
         run: |
           kubectl get pods -l app.kubernetes.io/name=netbird-api-exporter
           kubectl describe deployment netbird-test-netbird-api-exporter
