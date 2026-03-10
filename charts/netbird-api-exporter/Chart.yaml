@@ -57,6 +57,8 @@ annotations:
     - title: NetBird API Exporter Dashboard
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
+    - kind: fixed
+      description: "Fix flaky Helm chart tests caused by network unreachability, premature test pod deployment, and port-forward race condition"
     - kind: added
       description: "Configure Dependabot to group all updates by ecosystem into single PRs"
     - kind: added

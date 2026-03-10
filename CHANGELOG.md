@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Files modified in this change:
 - Modified: .github/dependabot.yml
 
+### Bugfix
+- Fix flaky Helm chart tests caused by network unreachability, premature test pod deployment, and port-forward race condition
+Files modified in this change:
+- Modified: .github/workflows/test.yml
+
 ## [0.1.82] - 2026-03-07
 
 
