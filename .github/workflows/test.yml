@@ -391,7 +391,7 @@ jobs:
         run: ./scripts/setup-test-netbird.sh
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
@@ -411,7 +411,7 @@ jobs:
           docker build -t netbird-api-exporter:test .
           kind load docker-image netbird-api-exporter:test --name netbird-test
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
            version: 'v3.18.3'
 
