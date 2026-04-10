@@ -171,7 +171,7 @@ jobs:
         echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
 
     - name: Set up ORAS
-      uses: oras-project/setup-oras@v1
+      uses: oras-project/setup-oras@v2
 
     - name: Package Helm chart
       run: |

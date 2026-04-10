@@ -120,7 +120,7 @@ jobs:
 
     - name: Comment PR with coverage
       if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -270,7 +270,7 @@ jobs:
         echo "main_coverage=$MAIN_COVERAGE" >> $GITHUB_ENV
 
     - name: Compare coverage
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
