@@ -3,7 +3,7 @@ module github.com/matanbaruch/netbird-api-exporter
 go 1.25.5
 
 require (
-	github.com/netbirdio/netbird v0.68.1
+	github.com/netbirdio/netbird v0.68.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sirupsen/logrus v1.9.4
 )
