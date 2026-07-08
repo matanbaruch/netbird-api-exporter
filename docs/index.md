@@ -9,7 +9,7 @@ permalink: /
 # NetBird API Exporter
 {: .fs-9 }
 
-A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird network peers, groups, users, networks, and DNS configuration.
+A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird network peers, groups, users, networks, DNS configuration, setup keys, policies, and routes.
 {: .fs-6 .fw-300 }
 
 [Get started now](#quick-start){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
@@ -26,6 +26,9 @@ The NetBird API Exporter is a lightweight Prometheus exporter that fetches metri
 - **User Metrics**: User roles, statuses, permissions, and activity
 - **DNS Metrics**: Nameserver groups, domains, and DNS configuration
 - **Network Metrics**: Network topology, routers, resources, and policies
+- **Setup Key Metrics**: Validity, revocation, ephemeral status, usage, and expiration
+- **Policy Metrics**: Policy and rule counts grouped by enabled status, protocol, and action
+- **Route Metrics**: Route counts grouped by enabled status, network type, and masquerade status
 
 ## Features
 
@@ -98,6 +101,9 @@ The exporter is built with a modular architecture that makes it easy to extend a
 │ • Users         │    │ • Users          │    │ • Querying      │
 │ • DNS           │    │ • DNS            │    │ • Alerting      │
 │ • Networks      │    │ • Networks       │    │                 │
+│ • Setup Keys    │    │ • Setup Keys     │    │                 │
+│ • Policies      │    │ • Policies       │    │                 │
+│ • Routes        │    │ • Routes         │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
