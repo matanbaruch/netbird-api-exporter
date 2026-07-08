@@ -130,6 +130,9 @@ func TestIntegration_NetBirdExporter_RealAPI(t *testing.T) {
 		"netbird_users_",
 		"netbird_dns_",
 		"netbird_networks_",
+		"netbird_setup_keys_",
+		"netbird_policies_",
+		"netbird_routes_",
 		"netbird_exporter_scrape_",
 	}
 
@@ -296,6 +299,84 @@ func TestIntegration_NetworksExporter_RealData(t *testing.T) {
 	}
 
 	t.Logf("Collected %d network metrics", len(metrics))
+}
+
+func TestIntegration_SetupKeysExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+
+	setupKeysExporter := exporters.NewSetupKeysExporter(client)
+	if setupKeysExporter == nil {
+		t.Fatal("Failed to create setup keys exporter")
+	}
+
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		setupKeysExporter.Collect(metricsCh)
+	}()
+
+	var metrics []prometheus.Metric
+	for metric := range metricsCh {
+		metrics = append(metrics, metric)
+	}
+
+	if len(metrics) == 0 {
+		t.Error("Expected at least some setup key metrics")
+	}
+
+	t.Logf("Collected %d setup key metrics", len(metrics))
+}
+
+func TestIntegration_PoliciesExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+
+	policiesExporter := exporters.NewPoliciesExporter(client)
+	if policiesExporter == nil {
+		t.Fatal("Failed to create policies exporter")
+	}
+
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		policiesExporter.Collect(metricsCh)
+	}()
+
+	var metrics []prometheus.Metric
+	for metric := range metricsCh {
+		metrics = append(metrics, metric)
+	}
+
+	if len(metrics) == 0 {
+		t.Error("Expected at least some policy metrics")
+	}
+
+	t.Logf("Collected %d policy metrics", len(metrics))
+}
+
+func TestIntegration_RoutesExporter_RealData(t *testing.T) {
+	client := getTestClient(t)
+
+	routesExporter := exporters.NewRoutesExporter(client)
+	if routesExporter == nil {
+		t.Fatal("Failed to create routes exporter")
+	}
+
+	metricsCh := make(chan prometheus.Metric, 100)
+	go func() {
+		defer close(metricsCh)
+		routesExporter.Collect(metricsCh)
+	}()
+
+	var metrics []prometheus.Metric
+	for metric := range metricsCh {
+		metrics = append(metrics, metric)
+	}
+
+	if len(metrics) == 0 {
+		t.Error("Expected at least some route metrics")
+	}
+
+	t.Logf("Collected %d route metrics", len(metrics))
 }
 
 func TestIntegration_APIRateLimiting(t *testing.T) {
