@@ -49,10 +49,13 @@ Configure the appropriate permissions for the API key. The exporter needs **read
 
 #### Required Permissions
 - ✅ **Peers**: Read access to view peer information
-- ✅ **Groups**: Read access to view group information  
+- ✅ **Groups**: Read access to view group information
 - ✅ **Users**: Read access to view user information
 - ✅ **DNS**: Read access to view DNS configuration
 - ✅ **Networks**: Read access to view network information
+- ✅ **Setup Keys**: Read access to view setup key information
+- ✅ **Policies**: Read access to view policy information
+- ✅ **Routes**: Read access to view route information
 
 #### Permission Settings
 ```
@@ -61,8 +64,9 @@ Groups: Read Only ✓
 Users: Read Only ✓
 DNS: Read Only ✓
 Networks: Read Only ✓
-Policies: No Access (not needed)
-Routes: No Access (not needed)
+Setup Keys: Read Only ✓
+Policies: Read Only ✓
+Routes: Read Only ✓
 Settings: No Access (not needed)
 ```
 

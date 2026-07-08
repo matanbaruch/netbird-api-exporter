@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+- Add Setup Keys exporter exposing setup key validity, revocation, ephemeral status, usage, expiration, and auto-group metrics
+- Add Policies exporter exposing policy and rule counts grouped by enabled status, protocol, and action
+- Add Routes exporter exposing route counts grouped by enabled status, network type, and masquerade status
+
+### Tests
+- Add integration tests covering the Setup Keys, Policies, and Routes exporters against a live NetBird API
+
 ## [0.1.100] - 2026-07-01
 
 ## [0.1.99] - 2026-06-23

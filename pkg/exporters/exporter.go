@@ -11,12 +11,15 @@ import (
 
 // NetBirdExporter represents the main Prometheus exporter for NetBird APIs
 type NetBirdExporter struct {
-	client           *nbclient.Client
-	peersExporter    *PeersExporter
-	groupsExporter   *GroupsExporter
-	usersExporter    *UsersExporter
-	dnsExporter      *DNSExporter
-	networksExporter *NetworksExporter
+	client            *nbclient.Client
+	peersExporter     *PeersExporter
+	groupsExporter    *GroupsExporter
+	usersExporter     *UsersExporter
+	dnsExporter       *DNSExporter
+	networksExporter  *NetworksExporter
+	setupKeysExporter *SetupKeysExporter
+	policiesExporter  *PoliciesExporter
+	routesExporter    *RoutesExporter
 
 	// Common metrics
 	scrapeDuration prometheus.Histogram
@@ -29,12 +32,15 @@ func NewNetBirdExporter(baseURL, token string) *NetBirdExporter {
 	client := nbclient.New(baseURL, token)
 
 	return &NetBirdExporter{
-		client:           client,
-		peersExporter:    NewPeersExporter(client),
-		groupsExporter:   NewGroupsExporter(client),
-		usersExporter:    NewUsersExporter(client),
-		dnsExporter:      NewDNSExporter(client),
-		networksExporter: NewNetworksExporter(client),
+		client:            client,
+		peersExporter:     NewPeersExporter(client),
+		groupsExporter:    NewGroupsExporter(client),
+		usersExporter:     NewUsersExporter(client),
+		dnsExporter:       NewDNSExporter(client),
+		networksExporter:  NewNetworksExporter(client),
+		setupKeysExporter: NewSetupKeysExporter(client),
+		policiesExporter:  NewPoliciesExporter(client),
+		routesExporter:    NewRoutesExporter(client),
 
 		scrapeDuration: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -59,6 +65,9 @@ func (e *NetBirdExporter) Describe(ch chan<- *prometheus.Desc) {
 	e.usersExporter.Describe(ch)
 	e.dnsExporter.Describe(ch)
 	e.networksExporter.Describe(ch)
+	e.setupKeysExporter.Describe(ch)
+	e.policiesExporter.Describe(ch)
+	e.routesExporter.Describe(ch)
 	e.scrapeDuration.Describe(ch)
 	e.scrapeErrors.Describe(ch)
 }
@@ -137,6 +146,39 @@ func (e *NetBirdExporter) Collect(ch chan<- prometheus.Metric) {
 		logrus.Debug("Completed networks collection")
 	}()
 
-	// Future exporters can be added here like:
-	// e.policiesExporter.Collect(ch)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.WithField("panic", r).Error("Panic during setup keys collection")
+				e.scrapeErrors.Inc()
+			}
+		}()
+		logrus.Debug("Starting setup keys collection")
+		e.setupKeysExporter.Collect(ch)
+		logrus.Debug("Completed setup keys collection")
+	}()
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.WithField("panic", r).Error("Panic during policies collection")
+				e.scrapeErrors.Inc()
+			}
+		}()
+		logrus.Debug("Starting policies collection")
+		e.policiesExporter.Collect(ch)
+		logrus.Debug("Completed policies collection")
+	}()
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.WithField("panic", r).Error("Panic during routes collection")
+				e.scrapeErrors.Inc()
+			}
+		}()
+		logrus.Debug("Starting routes collection")
+		e.routesExporter.Collect(ch)
+		logrus.Debug("Completed routes collection")
+	}()
 }

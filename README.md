@@ -29,7 +29,7 @@
 
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/netbird-api-exporter)](https://artifacthub.io/packages/search?repo=netbird-api-exporter)
 
-A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird network peers, groups, users, networks, and DNS configuration. This exporter fetches data from the [NetBird REST API](https://docs.netbird.io/ipa/resources/peers), [Groups API](https://docs.netbird.io/ipa/resources/groups), [Users API](https://docs.netbird.io/ipa/resources/users), [Networks API](https://docs.netbird.io/ipa/resources/networks), and [DNS API](https://docs.netbird.io/ipa/resources/dns) and exposes it in Prometheus format.
+A Prometheus exporter for NetBird API that provides comprehensive metrics about your NetBird network peers, groups, users, networks, DNS configuration, setup keys, policies, and routes. This exporter fetches data from the [NetBird REST API](https://docs.netbird.io/ipa/resources/peers), [Groups API](https://docs.netbird.io/ipa/resources/groups), [Users API](https://docs.netbird.io/ipa/resources/users), [Networks API](https://docs.netbird.io/ipa/resources/networks), [DNS API](https://docs.netbird.io/ipa/resources/dns), [Setup Keys API](https://docs.netbird.io/ipa/resources/setup-keys), [Policies API](https://docs.netbird.io/ipa/resources/policies), and [Routes API](https://docs.netbird.io/ipa/resources/routes) and exposes it in Prometheus format.
 
 ## Metrics Overview
 
@@ -105,6 +105,47 @@ The exporter provides the following metrics:
 | `netbird_network_info`                     | Gauge     | Information about networks (always 1)                      | `network_id`, `network_name`, `description` |
 | `netbird_networks_scrape_errors_total`     | Counter   | Total number of errors encountered while scraping networks | `error_type`                                |
 | `netbird_networks_scrape_duration_seconds` | Histogram | Time spent scraping networks from the NetBird API          | -                                           |
+
+### Setup Keys Metrics Table
+
+| Metric Name                                  | Type      | Description                                                   | Labels                                    |
+| -------------------------------------------- | --------- | ------------------------------------------------------------ | ----------------------------------------- |
+| `netbird_setup_keys`                         | Gauge     | Total number of setup keys by type and state                 | `type`, `state`                           |
+| `netbird_setup_keys_valid`                   | Gauge     | Number of setup keys grouped by validity status              | `valid`                                   |
+| `netbird_setup_keys_revoked`                 | Gauge     | Number of setup keys grouped by revocation status            | `revoked`                                 |
+| `netbird_setup_keys_ephemeral`               | Gauge     | Number of setup keys grouped by ephemeral status             | `ephemeral`                               |
+| `netbird_setup_key_used_times`               | Gauge     | Number of times a setup key has been used                    | `key_id`, `key_name`                      |
+| `netbird_setup_key_usage_limit`              | Gauge     | Usage limit configured for a setup key (0 means unlimited)   | `key_id`, `key_name`                      |
+| `netbird_setup_key_expires_timestamp`        | Gauge     | Expiration date of a setup key as a Unix timestamp           | `key_id`, `key_name`                      |
+| `netbird_setup_key_last_used_timestamp`      | Gauge     | Last usage date of a setup key as a Unix timestamp           | `key_id`, `key_name`                      |
+| `netbird_setup_key_auto_groups_count`        | Gauge     | Number of auto-assigned groups configured for a setup key    | `key_id`, `key_name`                      |
+| `netbird_setup_key_info`                     | Gauge     | Information about setup keys (always 1)                       | `key_id`, `key_name`, `type`, `state`     |
+| `netbird_setup_keys_scrape_errors_total`     | Counter   | Total number of errors encountered while scraping setup keys | `error_type`                              |
+| `netbird_setup_keys_scrape_duration_seconds` | Histogram | Time spent scraping setup keys from the NetBird API          | -                                         |
+
+### Policies Metrics Table
+
+| Metric Name                                 | Type      | Description                                                | Labels                                    |
+| ------------------------------------------- | --------- | --------------------------------------------------------- | ----------------------------------------- |
+| `netbird_policies`                          | Gauge     | Total number of policies grouped by enabled status        | `enabled`                                 |
+| `netbird_policy_rules_count`                | Gauge     | Number of rules configured in each policy                 | `policy_id`, `policy_name`                |
+| `netbird_policy_rules_enabled`              | Gauge     | Number of policy rules grouped by enabled status          | `enabled`                                 |
+| `netbird_policy_rules_by_protocol`          | Gauge     | Number of policy rules grouped by protocol                | `protocol`                                |
+| `netbird_policy_rules_by_action`            | Gauge     | Number of policy rules grouped by action                  | `action`                                  |
+| `netbird_policy_info`                       | Gauge     | Information about policies (always 1)                      | `policy_id`, `policy_name`, `description` |
+| `netbird_policies_scrape_errors_total`      | Counter   | Total number of errors encountered while scraping policies | `error_type`                             |
+| `netbird_policies_scrape_duration_seconds`  | Histogram | Time spent scraping policies from the NetBird API         | -                                         |
+
+### Routes Metrics Table
+
+| Metric Name                             | Type      | Description                                              | Labels                                                 |
+| --------------------------------------- | --------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `netbird_routes`                        | Gauge     | Total number of routes grouped by enabled status        | `enabled`                                              |
+| `netbird_routes_by_network_type`        | Gauge     | Number of routes grouped by network type                | `network_type`                                         |
+| `netbird_routes_masquerade`             | Gauge     | Number of routes grouped by masquerade status           | `masquerade`                                           |
+| `netbird_route_info`                    | Gauge     | Information about routes (always 1)                      | `route_id`, `network_id`, `network_type`, `description` |
+| `netbird_routes_scrape_errors_total`    | Counter   | Total number of errors encountered while scraping routes | `error_type`                                          |
+| `netbird_routes_scrape_duration_seconds`| Histogram | Time spent scraping routes from the NetBird API         | -                                                      |
 
 ### Exporter Metrics Table
 
