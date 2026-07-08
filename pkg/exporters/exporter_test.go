@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -43,6 +44,18 @@ func TestNewNetBirdExporter(t *testing.T) {
 
 	if exporter.networksExporter == nil {
 		t.Error("Expected networksExporter to be non-nil")
+	}
+
+	if exporter.setupKeysExporter == nil {
+		t.Error("Expected setupKeysExporter to be non-nil")
+	}
+
+	if exporter.policiesExporter == nil {
+		t.Error("Expected policiesExporter to be non-nil")
+	}
+
+	if exporter.routesExporter == nil {
+		t.Error("Expected routesExporter to be non-nil")
 	}
 
 	if exporter.scrapeDuration == nil {
@@ -190,6 +203,24 @@ func TestNetBirdExporter_Collect_WithMockServer(t *testing.T) {
 			]`)); err != nil {
 				t.Errorf("Failed to write response: %v", err)
 			}
+		case "/api/setup-keys":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(testSetupKeys()); err != nil {
+				t.Errorf("Failed to encode setup keys: %v", err)
+			}
+		case "/api/policies":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(testPolicies()); err != nil {
+				t.Errorf("Failed to encode policies: %v", err)
+			}
+		case "/api/routes":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(testRoutes()); err != nil {
+				t.Errorf("Failed to encode routes: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -215,6 +246,33 @@ func TestNetBirdExporter_Collect_WithMockServer(t *testing.T) {
 
 	if metricCount == 0 {
 		t.Error("Expected at least one metric to be collected")
+	}
+
+	// Ensure the sub-exporters (including setup keys, policies, and routes) are
+	// exercised end-to-end by gathering their metric families from a registry.
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(exporter)
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	present := make(map[string]bool)
+	for _, family := range families {
+		present[family.GetName()] = true
+	}
+
+	expectedFamilies := []string{
+		"netbird_peers",
+		"netbird_setup_keys",
+		"netbird_policies",
+		"netbird_routes",
+	}
+	for _, name := range expectedFamilies {
+		if !present[name] {
+			t.Errorf("Expected metric family %q to be present after collection", name)
+		}
 	}
 }
 
@@ -253,12 +311,15 @@ func TestNetBirdExporter_Collect_HandlesPanics(t *testing.T) {
 	invalidClient := nbclient.New("http://invalid", "token")
 	// Create an exporter with a nil client to potentially cause panics
 	exporter := &NetBirdExporter{
-		client:           nil,
-		peersExporter:    NewPeersExporter(invalidClient),
-		groupsExporter:   NewGroupsExporter(invalidClient),
-		usersExporter:    NewUsersExporter(invalidClient),
-		dnsExporter:      NewDNSExporter(invalidClient),
-		networksExporter: NewNetworksExporter(invalidClient),
+		client:            nil,
+		peersExporter:     NewPeersExporter(invalidClient),
+		groupsExporter:    NewGroupsExporter(invalidClient),
+		usersExporter:     NewUsersExporter(invalidClient),
+		dnsExporter:       NewDNSExporter(invalidClient),
+		networksExporter:  NewNetworksExporter(invalidClient),
+		setupKeysExporter: NewSetupKeysExporter(invalidClient),
+		policiesExporter:  NewPoliciesExporter(invalidClient),
+		routesExporter:    NewRoutesExporter(invalidClient),
 		scrapeDuration: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "netbird_exporter_scrape_duration_seconds",
@@ -340,6 +401,18 @@ func TestNetBirdExporter_ScrapeMetrics(t *testing.T) {
 				t.Errorf("Failed to write response: %v", err)
 			}
 		case "/api/networks":
+			if _, err := w.Write([]byte(`[]`)); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
+		case "/api/setup-keys":
+			if _, err := w.Write([]byte(`[]`)); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
+		case "/api/policies":
+			if _, err := w.Write([]byte(`[]`)); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
+		case "/api/routes":
 			if _, err := w.Write([]byte(`[]`)); err != nil {
 				t.Errorf("Failed to write response: %v", err)
 			}

@@ -216,8 +216,12 @@ func (e *SetupKeysExporter) updateMetrics(setupKeys []api.SetupKey) {
 
 		e.setupKeyUsedTimes.WithLabelValues(keyLabels...).Set(float64(key.UsedTimes))
 		e.setupKeyUsageLimit.WithLabelValues(keyLabels...).Set(float64(key.UsageLimit))
-		e.setupKeyExpires.WithLabelValues(keyLabels...).Set(float64(key.Expires.Unix()))
-		e.setupKeyLastUsed.WithLabelValues(keyLabels...).Set(float64(key.LastUsed.Unix()))
+		if !key.Expires.IsZero() {
+			e.setupKeyExpires.WithLabelValues(keyLabels...).Set(float64(key.Expires.Unix()))
+		}
+		if !key.LastUsed.IsZero() {
+			e.setupKeyLastUsed.WithLabelValues(keyLabels...).Set(float64(key.LastUsed.Unix()))
+		}
 		e.setupKeyAutoGroups.WithLabelValues(keyLabels...).Set(float64(len(key.AutoGroups)))
 		e.setupKeyInfo.WithLabelValues(key.Id, key.Name, key.Type, key.State).Set(1)
 	}

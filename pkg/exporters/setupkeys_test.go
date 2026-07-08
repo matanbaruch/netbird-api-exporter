@@ -260,6 +260,43 @@ func TestSetupKeysExporter_UpdateMetrics(t *testing.T) {
 	}
 }
 
+func TestSetupKeysExporter_UpdateMetrics_ZeroTimestamps(t *testing.T) {
+	client := nbclient.New("https://api.netbird.io", "test-token")
+	exporter := NewSetupKeysExporter(client)
+
+	// Setup key that never expires and was never used (zero-value times)
+	exporter.updateMetrics([]api.SetupKey{
+		{
+			Id:    "key-zero",
+			Name:  "never-used-key",
+			Type:  "reusable",
+			State: "valid",
+			Valid: true,
+		},
+	})
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		exporter.setupKeyExpires,
+		exporter.setupKeyLastUsed,
+	)
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	// Zero-value timestamps must not be emitted to avoid misleading negative values
+	for _, family := range families {
+		switch family.GetName() {
+		case "netbird_setup_key_expires_timestamp", "netbird_setup_key_last_used_timestamp":
+			if len(family.GetMetric()) != 0 {
+				t.Errorf("Expected %s to have no series for zero-value time, got %d", family.GetName(), len(family.GetMetric()))
+			}
+		}
+	}
+}
+
 func TestSetupKeysExporter_MetricsReset(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
