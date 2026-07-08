@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-08
+
 ### Features
 - Add Setup Keys exporter exposing setup key validity, revocation, ephemeral status, usage, expiration, and auto-group metrics
 - Add Policies exporter exposing policy and rule counts grouped by enabled status, protocol, and action
