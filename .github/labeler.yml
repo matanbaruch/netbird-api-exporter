@@ -1,0 +1,42 @@
+# Configuration for the "Labeler" workflow (.github/workflows/label.yml).
+# Applies labels to pull requests based on the paths of changed files.
+# See: https://github.com/actions/labeler
+
+documentation:
+  - '**/*.md'
+  - docs/**/*
+
+go:
+  - '**/*.go'
+  - go.mod
+  - go.sum
+
+exporters:
+  - pkg/exporters/**/*
+
+netbird-client:
+  - pkg/netbird/**/*
+
+utils:
+  - pkg/utils/**/*
+
+tests:
+  - tests/**/*
+  - '**/*_test.go'
+
+ci:
+  - .github/workflows/**/*
+  - .github/**/*.yml
+
+docker:
+  - Dockerfile
+  - docker-compose.yml
+  - .dockerignore
+
+helm:
+  - charts/**/*
+
+dependencies:
+  - go.mod
+  - go.sum
+  - .github/dependabot.yml
