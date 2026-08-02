@@ -4,9 +4,9 @@ description: A Helm chart for NetBird API Exporter - Prometheus exporter for Net
 
 type: application
 
-version: 0.2.5
+version: 0.2.6
 
-appVersion: "0.2.5"
+appVersion: "0.2.6"
 
 icon: https://avatars.githubusercontent.com/u/100464677
 
