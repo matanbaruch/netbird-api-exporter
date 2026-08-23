@@ -59,6 +59,8 @@ annotations:
   artifacthub.io/changes: |
     - kind: fixed
       description: "Fix the Labeler workflow failing on every pull request"
+    - kind: fixed
+      description: "Fix the lint workflow failing with a golangci-lint panic on Go 1.27"
     - kind: added
       description: "Add .github/labeler.yml configuration for the Labeler workflow"
     - kind: added
