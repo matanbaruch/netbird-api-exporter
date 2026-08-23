@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-08-23
+
 
 ### Bugfix
 - Fix the Labeler workflow failing on every pull request by migrating .github/labeler.yml to the actions/labeler v5+ match-object syntax
