@@ -3,40 +3,60 @@
 # See: https://github.com/actions/labeler
 
 documentation:
-  - '**/*.md'
-  - docs/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
 
 go:
-  - '**/*.go'
-  - go.mod
-  - go.sum
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.go'
+          - 'go.mod'
+          - 'go.sum'
 
 exporters:
-  - pkg/exporters/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pkg/exporters/**/*'
 
 netbird-client:
-  - pkg/netbird/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pkg/netbird/**/*'
 
 utils:
-  - pkg/utils/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pkg/utils/**/*'
 
 tests:
-  - tests/**/*
-  - '**/*_test.go'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**/*'
+          - '**/*_test.go'
 
 ci:
-  - .github/workflows/**/*
-  - .github/**/*.yml
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**/*'
+          - '.github/**/*.yml'
 
 docker:
-  - Dockerfile
-  - docker-compose.yml
-  - .dockerignore
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Dockerfile'
+          - 'docker-compose.yml'
+          - '.dockerignore'
 
 helm:
-  - charts/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/**/*'
 
 dependencies:
-  - go.mod
-  - go.sum
-  - .github/dependabot.yml
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'go.mod'
+          - 'go.sum'
+          - '.github/dependabot.yml'
