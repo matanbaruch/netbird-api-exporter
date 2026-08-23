@@ -4,9 +4,9 @@ description: A Helm chart for NetBird API Exporter - Prometheus exporter for Net
 
 type: application
 
-version: 0.2.8
+version: 0.2.9
 
-appVersion: "0.2.8"
+appVersion: "0.2.9"
 
 icon: https://avatars.githubusercontent.com/u/100464677
 
@@ -61,6 +61,8 @@ annotations:
       description: "Fix the Labeler workflow failing on every pull request"
     - kind: fixed
       description: "Fix the lint workflow failing with a golangci-lint panic on Go 1.27"
+    - kind: added
+      description: "Upgrade to Go 1.27 and unify every Go toolchain pin on the version declared in go.mod"
     - kind: added
       description: "Add .github/labeler.yml configuration for the Labeler workflow"
     - kind: added
