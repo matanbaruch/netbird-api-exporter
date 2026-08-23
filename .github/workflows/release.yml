@@ -49,8 +49,81 @@ jobs:
         echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
-  build-and-push-docker:
+  build-docker-amd64:
+    name: Build Docker Image (amd64)
     needs: prepare-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: main
+        fetch-depth: 0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v4.6.0
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # Pushed by digest only, with no tags. The manifest job assembles the tags across both architectures.
+    - name: Build and push amd64 image by digest
+      id: build
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        platforms: linux/amd64
+        cache-from: type=gha,scope=amd64
+        cache-to: type=gha,mode=max,scope=amd64
+        outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+  build-docker-arm64:
+    name: Build Docker Image (arm64)
+    needs: prepare-version
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: main
+        fetch-depth: 0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v4.6.0
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push arm64 image by digest
+      id: build
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        platforms: linux/arm64
+        cache-from: type=gha,scope=arm64
+        cache-to: type=gha,mode=max,scope=arm64
+        outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+  # Keeps the build-and-push-docker name so the downstream release jobs' needs: entries stay valid.
+  build-and-push-docker:
+    name: Push Multi-Arch Manifest
+    needs: [prepare-version, build-docker-amd64, build-docker-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,16 +131,8 @@ jobs:
       id-token: write
       attestations: write
     outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
+      image-digest: ${{ steps.manifest.outputs.digest }}
     steps:
-    - uses: actions/checkout@v7
-      with:
-        ref: main
-        fetch-depth: 0
-
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v4
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
 
@@ -88,25 +153,40 @@ jobs:
           type=raw,value=${{ needs.prepare-version.outputs.new_version }}
           type=raw,value=${{ needs.prepare-version.outputs.new_tag }}
 
-    - name: Build and push Docker image
-      id: build
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    - name: Create and push manifest list
+      id: manifest
+      env:
+        IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        AMD64_DIGEST: ${{ needs.build-docker-amd64.outputs.digest }}
+        ARM64_DIGEST: ${{ needs.build-docker-arm64.outputs.digest }}
+        VERSION: ${{ needs.prepare-version.outputs.new_version }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$AMD64_DIGEST" ] || [ -z "$ARM64_DIGEST" ]; then
+          echo "Missing a per-architecture digest: amd64='$AMD64_DIGEST' arm64='$ARM64_DIGEST'"
+          exit 1
+        fi
+
+        # shellcheck disable=SC2046
+        docker buildx imagetools create \
+          $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          "${IMAGE}@${AMD64_DIGEST}" \
+          "${IMAGE}@${ARM64_DIGEST}"
+
+        MANIFEST_DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" \
+          --format '{{json .Manifest}}' | jq -r '.digest')
+        echo "digest=$MANIFEST_DIGEST" >> "$GITHUB_OUTPUT"
+
+        echo "Pushed manifest ${IMAGE}:${VERSION} at ${MANIFEST_DIGEST}"
+        docker buildx imagetools inspect "${IMAGE}:${VERSION}"
 
     - name: Attest Docker image
       uses: actions/attest-build-provenance@v4
       with:
         subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        subject-digest: ${{ steps.build.outputs.digest }}
+        subject-digest: ${{ steps.manifest.outputs.digest }}
         push-to-registry: true
-
   build-binaries:
     needs: prepare-version
     runs-on: ubuntu-latest

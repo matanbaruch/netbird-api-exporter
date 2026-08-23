@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Build Docker images natively on separate amd64 and arm64 runners instead of emulating arm64 with QEMU, then assemble and push the multi-arch manifest on ubuntu-latest
+- Push per-architecture images by digest from pull request builds and publish a single mutable `pr-<number>` manifest tag
+
 ## [0.2.9] - 2026-08-23
 
 ## [0.2.8] - 2026-08-23
