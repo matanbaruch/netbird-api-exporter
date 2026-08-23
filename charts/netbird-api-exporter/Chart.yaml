@@ -60,6 +60,8 @@ annotations:
     - kind: fixed
       description: "Fix the Labeler workflow failing on every pull request"
     - kind: added
+      description: "Upgrade to Go 1.27 and unify every Go toolchain pin on the version declared in go.mod"
+    - kind: added
       description: "Add .github/labeler.yml configuration for the Labeler workflow"
     - kind: added
       description: "Add Setup Keys, Policies, and Routes exporters exposing new NetBird API metrics"

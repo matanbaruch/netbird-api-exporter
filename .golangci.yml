@@ -12,6 +12,13 @@ linters:
     - unused
     - bodyclose
     - gosec
+  exclusions:
+    rules:
+      # Test fixtures marshal upstream api.User, which carries a Password field the tests never set.
+      - path: '_test\.go'
+        linters:
+          - gosec
+        text: 'G117:'
 
 issues:
   max-same-issues: 3

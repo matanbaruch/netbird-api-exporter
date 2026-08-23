@@ -1,6 +1,6 @@
 module github.com/matanbaruch/netbird-api-exporter
 
-go 1.25.5
+go 1.27.0
 
 require (
 	github.com/netbirdio/netbird v0.71.4
