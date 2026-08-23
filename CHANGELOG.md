@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix the Labeler workflow failing on every pull request by migrating .github/labeler.yml to the actions/labeler v5+ match-object syntax
 - Grant the Labeler workflow `issues: write` so it can create labels declared in .github/labeler.yml that do not yet exist in the repository
 
+### Features
+- Upgrade to Go 1.27 (build, test, lint and release toolchains); building from source now requires Go 1.27 or newer
+- Unify every Go version pin on `go-version-file: go.mod` so go.mod is the single source of truth, replacing the four different versions previously pinned across go.mod, Dockerfile, mise.toml and the workflows
+- Bump golangci-lint to v2.13.1, the first release built with go1.27
+
 ## [0.2.7] - 2026-08-14
 
 ## [0.2.6] - 2026-08-02
