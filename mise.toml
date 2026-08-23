@@ -3,7 +3,7 @@
 
 [tools]
 # Go version matching go.mod
-go = "1.27"
+go = "1.27.0"
 
 # Linting and formatting tools
 "go:golang.org/x/tools/cmd/goimports" = "latest"
