@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-08-24
+
 
 ### Bugfix
 - Stop the NetBird integration test setup from timing out in CI by raising the readiness budget to 240s, pulling images before the wait starts, and failing immediately if the container stops instead of waiting out the full budget
