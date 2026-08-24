@@ -58,6 +58,8 @@ annotations:
       url: https://github.com/user-attachments/assets/df57ed5f-524a-4965-9b8a-a8cb97ee4892
   artifacthub.io/changes: |
     - kind: fixed
+      description: "Stop the NetBird integration test setup from timing out in CI"
+    - kind: fixed
       description: "Fix the Labeler workflow failing on every pull request"
     - kind: fixed
       description: "Fix the lint workflow failing with a golangci-lint panic on Go 1.27"

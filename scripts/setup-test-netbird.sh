@@ -10,7 +10,7 @@ NC='\033[0m'
 
 COMPOSE_FILE="tests/docker-compose.netbird.yml"
 CONTAINER_NAME="netbird-server"
-MAX_WAIT=90
+MAX_WAIT=240
 NETBIRD_URL="http://localhost:8081"
 ADMIN_EMAIL="admin@test.local"
 ADMIN_PASSWORD="T3stP@ssw0rd!"
@@ -29,16 +29,28 @@ cd "$PROJECT_ROOT"
 
 print_status "Starting self-hosted NetBird server for testing..."
 
+# Pull first so image download time is not charged against the readiness budget below
+docker compose -f "$COMPOSE_FILE" pull --quiet
+
 # Start the container
 docker compose -f "$COMPOSE_FILE" up -d
 
-# Wait for the server to be healthy (poll from host)
+# Wait for the server to be healthy (poll from host). On a fresh volume the server also downloads a GeoLite2 database here, which dominates startup.
 print_status "Waiting for NetBird server to be ready (max ${MAX_WAIT}s)..."
 elapsed=0
 while [ $elapsed -lt $MAX_WAIT ]; do
     if curl -sf "${NETBIRD_URL}/oauth2/.well-known/openid-configuration" >/dev/null 2>&1; then
         print_success "NetBird server is ready! (${elapsed}s)"
         break
+    fi
+    # A crashed container will never become ready, so fail immediately instead of waiting out the whole budget
+    if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
+        print_error "NetBird container stopped running before becoming ready"
+        docker compose -f "$COMPOSE_FILE" logs
+        exit 1
+    fi
+    if [ $elapsed -gt 0 ] && [ $((elapsed % 30)) -eq 0 ]; then
+        print_status "Still waiting for NetBird server (${elapsed}s elapsed)..."
     fi
     sleep 3
     elapsed=$((elapsed + 3))
