@@ -6,7 +6,6 @@
 
 [![Lint](https://github.com/matanbaruch/netbird-api-exporter/actions/workflows/lint.yml/badge.svg)](https://github.com/matanbaruch/netbird-api-exporter/actions/workflows/lint.yml)
 [![Release](https://github.com/matanbaruch/netbird-api-exporter/actions/workflows/release.yml/badge.svg)](https://github.com/matanbaruch/netbird-api-exporter/actions/workflows/release.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/matanbaruch/netbird-api-exporter)](https://goreportcard.com/report/github.com/matanbaruch/netbird-api-exporter)
 
 <!-- Language and Tech Stack -->
 
