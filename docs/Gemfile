@@ -12,14 +12,14 @@ ruby ">= 3.2.0"
 # This will help ensure the proper Jekyll version is running.
 # Happy Jekylling!
 
-# Use GitHub Pages gem for better compatibility with GitHub Pages deployment
-gem "github-pages", group: :jekyll_plugins
-
-# Note: We use remote_theme in _config.yml instead of gem "just-the-docs"
-# to avoid conflicts with github-pages gem
+gem "jekyll", "~> 3.10"
+gem "kramdown-parser-gfm"
 
 # If you have any plugins, put them here!
 group :jekyll_plugins do
+  gem "jekyll-remote-theme", "~> 0.6"
+  gem "jekyll-include-cache"
+  gem "rake"
   gem "jekyll-feed", "~> 0.12"
   gem "jekyll-sitemap"
   gem "jekyll-seo-tag"

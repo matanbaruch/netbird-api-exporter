@@ -73,6 +73,8 @@ plugins:
 
 # Markdown
 markdown: kramdown
+sass:
+  style: compressed
 kramdown:
   syntax_highlighter_opts:
     block:
