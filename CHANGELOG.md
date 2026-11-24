@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Features
+- Add netbird_peers_connected_by_group metric exposing currently connected peers per group
+Files modified in this change:
+- Modified: README.md
+- Modified: pkg/exporters/peers.go
+- Modified: pkg/exporters/peers_test.go
+
 ## [0.2.23] - 2026-11-24
 
 ## [0.2.22] - 2026-11-11

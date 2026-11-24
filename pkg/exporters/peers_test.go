@@ -347,7 +347,7 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter.peersTotal, exporter.peersConnected, exporter.peersLastSeen, exporter.peersByOS, exporter.peersByCountry, exporter.peersByGroup, exporter.peersSSHEnabled, exporter.peersLoginExpired, exporter.peersApprovalRequired, exporter.accessiblePeersCount, exporter.peerConnectionStatusByName)
+	registry.MustRegister(exporter.peersTotal, exporter.peersConnected, exporter.peersLastSeen, exporter.peersByOS, exporter.peersByCountry, exporter.peersByGroup, exporter.peersConnectedByGroup, exporter.peersSSHEnabled, exporter.peersLoginExpired, exporter.peersApprovalRequired, exporter.accessiblePeersCount, exporter.peerConnectionStatusByName)
 
 	families, err := registry.Gather()
 	if err != nil {
@@ -530,5 +530,59 @@ func TestPeersExporter_ConnectionStatusByName(t *testing.T) {
 	}
 	if !foundDisconnected {
 		t.Error("Expected to find disconnected peer metric")
+	}
+}
+
+func TestPeersExporter_ConnectedByGroup(t *testing.T) {
+	client := nbclient.New("https://api.netbird.io", "test-token")
+	exporter := NewPeersExporter(client)
+
+	peers := []api.Peer{
+		{Id: "p1", Name: "p1", Connected: true, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g2", Name: "devs"}}},
+		{Id: "p2", Name: "p2", Connected: false, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g2", Name: "devs"}}},
+		{Id: "p3", Name: "p3", Connected: false, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g3", Name: "offline_only"}}},
+		{Id: "p4", Name: "p4", Connected: true, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}}},
+	}
+	exporter.updateMetrics(peers)
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(exporter.peersByGroup, exporter.peersConnectedByGroup)
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	type want struct{ total, connected float64 }
+	expected := map[string]want{
+		"All":          {total: 4, connected: 2},
+		"devs":         {total: 2, connected: 1},
+		"offline_only": {total: 1, connected: 0},
+	}
+
+	got := map[string]map[string]float64{}
+	for _, family := range families {
+		for _, m := range family.GetMetric() {
+			var name string
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "group_name" {
+					name = l.GetValue()
+				}
+			}
+			if got[family.GetName()] == nil {
+				got[family.GetName()] = map[string]float64{}
+			}
+			got[family.GetName()][name] = m.GetGauge().GetValue()
+		}
+	}
+
+	for group, w := range expected {
+		total, ok := got["netbird_peers_by_group"][group]
+		if !ok || total != w.total {
+			t.Errorf("netbird_peers_by_group{group_name=%q} = %v (present=%v), want %v", group, total, ok, w.total)
+		}
+		connected, ok := got["netbird_peers_connected_by_group"][group]
+		if !ok || connected != w.connected {
+			t.Errorf("netbird_peers_connected_by_group{group_name=%q} = %v (present=%v), want %v", group, connected, ok, w.connected)
+		}
 	}
 }

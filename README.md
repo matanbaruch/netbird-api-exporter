@@ -44,6 +44,7 @@ The exporter provides the following metrics:
 | `netbird_peers_by_os`                    | Gauge | Number of peers by operating system                                          | `os`                                |
 | `netbird_peers_by_country`               | Gauge | Number of peers by country/city                                              | `country_code`, `city_name`         |
 | `netbird_peers_by_group`                 | Gauge | Number of peers by group                                                     | `group_id`, `group_name`            |
+| `netbird_peers_connected_by_group`       | Gauge | Number of connected peers by group (0 if none connected)                     | `group_id`, `group_name`            |
 | `netbird_peers_ssh_enabled`              | Gauge | Number of peers with SSH enabled/disabled                                    | `ssh_enabled`                       |
 | `netbird_peers_login_expired`            | Gauge | Number of peers with expired/valid login                                     | `login_expired`                     |
 | `netbird_peers_approval_required`        | Gauge | Number of peers requiring/not requiring approval                             | `approval_required`                 |
