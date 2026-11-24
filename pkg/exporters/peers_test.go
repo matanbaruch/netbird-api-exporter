@@ -44,6 +44,9 @@ func TestNewPeersExporter(t *testing.T) {
 	if exporter.peersByGroup == nil {
 		t.Error("Expected peersByGroup metric to be non-nil")
 	}
+	if exporter.peersConnectedByGroup == nil {
+		t.Error("Expected peersConnectedByGroup metric to be non-nil")
+	}
 	if exporter.peersSSHEnabled == nil {
 		t.Error("Expected peersSSHEnabled metric to be non-nil")
 	}
@@ -537,52 +540,101 @@ func TestPeersExporter_ConnectedByGroup(t *testing.T) {
 	client := nbclient.New("https://api.netbird.io", "test-token")
 	exporter := NewPeersExporter(client)
 
+	// Test data: a group with connected peers, a mixed group and a group where all peers are offline
 	peers := []api.Peer{
-		{Id: "p1", Name: "p1", Connected: true, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g2", Name: "devs"}}},
-		{Id: "p2", Name: "p2", Connected: false, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g2", Name: "devs"}}},
-		{Id: "p3", Name: "p3", Connected: false, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}, {Id: "g3", Name: "offline_only"}}},
-		{Id: "p4", Name: "p4", Connected: true, Groups: []api.GroupMinimum{{Id: "g1", Name: "All"}}},
+		{
+			Id:        "peer1",
+			Name:      "peer-1",
+			Connected: true,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group2", Name: "devs"}},
+		},
+		{
+			Id:        "peer2",
+			Name:      "peer-2",
+			Connected: false,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group2", Name: "devs"}},
+		},
+		{
+			Id:        "peer3",
+			Name:      "peer-3",
+			Connected: false,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group3", Name: "offline-only"}},
+		},
+		{
+			Id:        "peer4",
+			Name:      "peer-4",
+			Connected: true,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}},
+		},
 	}
+
+	// Call updateMetrics directly
 	exporter.updateMetrics(peers)
 
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter.peersByGroup, exporter.peersConnectedByGroup)
-	families, err := registry.Gather()
+	testRegistry := prometheus.NewPedanticRegistry()
+	testRegistry.MustRegister(exporter.peersConnectedByGroup)
+
+	families, err := testRegistry.Gather()
 	if err != nil {
 		t.Fatalf("Failed to gather metrics: %v", err)
 	}
 
-	type want struct{ total, connected float64 }
-	expected := map[string]want{
-		"All":          {total: 4, connected: 2},
-		"devs":         {total: 2, connected: 1},
-		"offline_only": {total: 1, connected: 0},
+	if len(families) != 1 {
+		t.Fatalf("Expected 1 metric family, got %d", len(families))
 	}
 
-	got := map[string]map[string]float64{}
-	for _, family := range families {
-		for _, m := range family.GetMetric() {
-			var name string
-			for _, l := range m.GetLabel() {
-				if l.GetName() == "group_name" {
-					name = l.GetValue()
-				}
+	family := families[0]
+	if family.GetName() != "netbird_peers_connected_by_group" {
+		t.Errorf("Expected metric name 'netbird_peers_connected_by_group', got '%s'", family.GetName())
+	}
+
+	// Verify we have 3 metrics (one for each group)
+	if len(family.GetMetric()) != 3 {
+		t.Errorf("Expected 3 metrics, got %d", len(family.GetMetric()))
+	}
+
+	// Verify the metrics have correct values and labels
+	expected := map[string]struct {
+		groupID   string
+		connected float64
+	}{
+		"All":          {groupID: "group1", connected: 2},
+		"devs":         {groupID: "group2", connected: 1},
+		"offline-only": {groupID: "group3", connected: 0},
+	}
+	found := make(map[string]bool)
+
+	for _, metric := range family.GetMetric() {
+		value := metric.GetGauge().GetValue()
+
+		var groupID, groupName string
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "group_id" {
+				groupID = label.GetValue()
 			}
-			if got[family.GetName()] == nil {
-				got[family.GetName()] = map[string]float64{}
+			if label.GetName() == "group_name" {
+				groupName = label.GetValue()
 			}
-			got[family.GetName()][name] = m.GetGauge().GetValue()
+		}
+
+		want, ok := expected[groupName]
+		if !ok {
+			t.Errorf("Unexpected group '%s'", groupName)
+			continue
+		}
+		found[groupName] = true
+
+		if groupID != want.groupID {
+			t.Errorf("Expected group_id '%s' for group '%s', got '%s'", want.groupID, groupName, groupID)
+		}
+		if value != want.connected {
+			t.Errorf("Expected %f connected peers for group '%s', got %f", want.connected, groupName, value)
 		}
 	}
 
-	for group, w := range expected {
-		total, ok := got["netbird_peers_by_group"][group]
-		if !ok || total != w.total {
-			t.Errorf("netbird_peers_by_group{group_name=%q} = %v (present=%v), want %v", group, total, ok, w.total)
-		}
-		connected, ok := got["netbird_peers_connected_by_group"][group]
-		if !ok || connected != w.connected {
-			t.Errorf("netbird_peers_connected_by_group{group_name=%q} = %v (present=%v), want %v", group, connected, ok, w.connected)
+	for groupName := range expected {
+		if !found[groupName] {
+			t.Errorf("Expected to find metric for group '%s'", groupName)
 		}
 	}
 }
