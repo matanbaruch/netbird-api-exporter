@@ -15,6 +15,8 @@ Files modified in this change:
 - Modified: pkg/exporters/peers.go
 - Modified: pkg/exporters/peers_test.go
 
+## [0.2.24] - 2026-11-26
+
 ## [0.2.23] - 2026-11-24
 
 ## [0.2.22] - 2026-11-11
