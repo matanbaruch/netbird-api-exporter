@@ -44,6 +44,9 @@ func TestNewPeersExporter(t *testing.T) {
 	if exporter.peersByGroup == nil {
 		t.Error("Expected peersByGroup metric to be non-nil")
 	}
+	if exporter.peersConnectedByGroup == nil {
+		t.Error("Expected peersConnectedByGroup metric to be non-nil")
+	}
 	if exporter.peersSSHEnabled == nil {
 		t.Error("Expected peersSSHEnabled metric to be non-nil")
 	}
@@ -347,7 +350,7 @@ func TestPeersExporter_UpdateMetrics(t *testing.T) {
 
 	// Check metric values using a registry
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(exporter.peersTotal, exporter.peersConnected, exporter.peersLastSeen, exporter.peersByOS, exporter.peersByCountry, exporter.peersByGroup, exporter.peersSSHEnabled, exporter.peersLoginExpired, exporter.peersApprovalRequired, exporter.accessiblePeersCount, exporter.peerConnectionStatusByName)
+	registry.MustRegister(exporter.peersTotal, exporter.peersConnected, exporter.peersLastSeen, exporter.peersByOS, exporter.peersByCountry, exporter.peersByGroup, exporter.peersConnectedByGroup, exporter.peersSSHEnabled, exporter.peersLoginExpired, exporter.peersApprovalRequired, exporter.accessiblePeersCount, exporter.peerConnectionStatusByName)
 
 	families, err := registry.Gather()
 	if err != nil {
@@ -530,5 +533,108 @@ func TestPeersExporter_ConnectionStatusByName(t *testing.T) {
 	}
 	if !foundDisconnected {
 		t.Error("Expected to find disconnected peer metric")
+	}
+}
+
+func TestPeersExporter_ConnectedByGroup(t *testing.T) {
+	client := nbclient.New("https://api.netbird.io", "test-token")
+	exporter := NewPeersExporter(client)
+
+	// Test data: a group with connected peers, a mixed group and a group where all peers are offline
+	peers := []api.Peer{
+		{
+			Id:        "peer1",
+			Name:      "peer-1",
+			Connected: true,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group2", Name: "devs"}},
+		},
+		{
+			Id:        "peer2",
+			Name:      "peer-2",
+			Connected: false,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group2", Name: "devs"}},
+		},
+		{
+			Id:        "peer3",
+			Name:      "peer-3",
+			Connected: false,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}, {Id: "group3", Name: "offline-only"}},
+		},
+		{
+			Id:        "peer4",
+			Name:      "peer-4",
+			Connected: true,
+			Groups:    []api.GroupMinimum{{Id: "group1", Name: "All"}},
+		},
+	}
+
+	// Call updateMetrics directly
+	exporter.updateMetrics(peers)
+
+	testRegistry := prometheus.NewPedanticRegistry()
+	testRegistry.MustRegister(exporter.peersConnectedByGroup)
+
+	families, err := testRegistry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	if len(families) != 1 {
+		t.Fatalf("Expected 1 metric family, got %d", len(families))
+	}
+
+	family := families[0]
+	if family.GetName() != "netbird_peers_connected_by_group" {
+		t.Errorf("Expected metric name 'netbird_peers_connected_by_group', got '%s'", family.GetName())
+	}
+
+	// Verify we have 3 metrics (one for each group)
+	if len(family.GetMetric()) != 3 {
+		t.Errorf("Expected 3 metrics, got %d", len(family.GetMetric()))
+	}
+
+	// Verify the metrics have correct values and labels
+	expected := map[string]struct {
+		groupID   string
+		connected float64
+	}{
+		"All":          {groupID: "group1", connected: 2},
+		"devs":         {groupID: "group2", connected: 1},
+		"offline-only": {groupID: "group3", connected: 0},
+	}
+	found := make(map[string]bool)
+
+	for _, metric := range family.GetMetric() {
+		value := metric.GetGauge().GetValue()
+
+		var groupID, groupName string
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "group_id" {
+				groupID = label.GetValue()
+			}
+			if label.GetName() == "group_name" {
+				groupName = label.GetValue()
+			}
+		}
+
+		want, ok := expected[groupName]
+		if !ok {
+			t.Errorf("Unexpected group '%s'", groupName)
+			continue
+		}
+		found[groupName] = true
+
+		if groupID != want.groupID {
+			t.Errorf("Expected group_id '%s' for group '%s', got '%s'", want.groupID, groupName, groupID)
+		}
+		if value != want.connected {
+			t.Errorf("Expected %f connected peers for group '%s', got %f", want.connected, groupName, value)
+		}
+	}
+
+	for groupName := range expected {
+		if !found[groupName] {
+			t.Errorf("Expected to find metric for group '%s'", groupName)
+		}
 	}
 }

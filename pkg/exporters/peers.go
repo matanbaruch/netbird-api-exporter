@@ -23,6 +23,7 @@ type PeersExporter struct {
 	peersByOS                  *prometheus.GaugeVec
 	peersByCountry             *prometheus.GaugeVec
 	peersByGroup               *prometheus.GaugeVec
+	peersConnectedByGroup      *prometheus.GaugeVec
 	peersSSHEnabled            *prometheus.GaugeVec
 	peersLoginExpired          *prometheus.GaugeVec
 	peersApprovalRequired      *prometheus.GaugeVec
@@ -83,6 +84,14 @@ func NewPeersExporter(client *nbclient.Client) *PeersExporter {
 			[]string{"group_id", "group_name"},
 		),
 
+		peersConnectedByGroup: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "netbird_peers_connected_by_group",
+				Help: "Number of currently connected NetBird peers by group (0 when no peer in the group is connected)",
+			},
+			[]string{"group_id", "group_name"},
+		),
+
 		peersSSHEnabled: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "netbird_peers_ssh_enabled",
@@ -133,6 +142,7 @@ func (e *PeersExporter) Describe(ch chan<- *prometheus.Desc) {
 	e.peersByOS.Describe(ch)
 	e.peersByCountry.Describe(ch)
 	e.peersByGroup.Describe(ch)
+	e.peersConnectedByGroup.Describe(ch)
 	e.peersSSHEnabled.Describe(ch)
 	e.peersLoginExpired.Describe(ch)
 	e.peersApprovalRequired.Describe(ch)
@@ -149,6 +159,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersByOS.Reset()
 	e.peersByCountry.Reset()
 	e.peersByGroup.Reset()
+	e.peersConnectedByGroup.Reset()
 	e.peersSSHEnabled.Reset()
 	e.peersLoginExpired.Reset()
 	e.peersApprovalRequired.Reset()
@@ -173,6 +184,7 @@ func (e *PeersExporter) Collect(ch chan<- prometheus.Metric) {
 	e.peersByOS.Collect(ch)
 	e.peersByCountry.Collect(ch)
 	e.peersByGroup.Collect(ch)
+	e.peersConnectedByGroup.Collect(ch)
 	e.peersSSHEnabled.Collect(ch)
 	e.peersLoginExpired.Collect(ch)
 	e.peersApprovalRequired.Collect(ch)
@@ -191,6 +203,7 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 	osCounts := make(map[string]int)
 	countryCounts := make(map[string]int)
 	groupCounts := make(map[string]int)
+	groupConnectedCounts := make(map[string]int)
 	sshEnabledCount := 0
 	sshDisabledCount := 0
 	loginExpiredCount := 0
@@ -227,6 +240,9 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 		for _, group := range peer.Groups {
 			groupKey := fmt.Sprintf("%s_%s", group.Id, group.Name)
 			groupCounts[groupKey]++
+			if peer.Connected {
+				groupConnectedCounts[groupKey]++
+			}
 		}
 
 		// SSH status
@@ -296,6 +312,7 @@ func (e *PeersExporter) updateMetrics(peers []api.Peer) {
 			groupName = parts[1]
 		}
 		e.peersByGroup.WithLabelValues(groupID, groupName).Set(float64(count))
+		e.peersConnectedByGroup.WithLabelValues(groupID, groupName).Set(float64(groupConnectedCounts[groupInfo]))
 	}
 
 	// SSH status
